@@ -17,3 +17,147 @@ editor_options:
 knitr::opts_chunk$set(eval = TRUE, message = FALSE, warning = FALSE)
 
 ```
+
+```{r data}
+library(httr)
+
+# Reading a CSV file from a raw GitHub link - WEBMD Scrapped Data
+raw_cymbalta_reviews <- read.csv(url("https://raw.githubusercontent.com/hbedros/SSRI-SNRI-Gender-Sentiment/main/data/cymbalta_reviews.csv"))
+raw_effexor_reviews <- read.csv(url("https://raw.githubusercontent.com/hbedros/SSRI-SNRI-Gender-Sentiment/main/data/effexor_reviews.csv"))
+raw_lexapro_reviews <- read.csv(url("https://raw.githubusercontent.com/hbedros/SSRI-SNRI-Gender-Sentiment/main/data/lexapro_reviews.csv"))
+raw_prozac_reviews <- read.csv(url("https://raw.githubusercontent.com/hbedros/SSRI-SNRI-Gender-Sentiment/main/data/prozac_reviews.csv"))
+```
+
+```{r}
+library(tidyr)
+library(dplyr)
+
+# Rename the first column of raw_prozac_reviews to 'reviewer_info'
+names(raw_prozac_reviews)[1] <- "reviewer_info"
+
+# Define the cleanup function
+cleanup_data <- function(raw_cymbalta_reviews) {
+  
+# Separate the 'reviewer_info' columns into seperate columns
+data_separated <- raw_cymbalta_reviews %>%
+  separate(reviewer_info, into = paste0("column", 1:5), sep = " \\| ", fill = "right", extra = "merge")
+
+# Define the 'reassign_columns' function to handle reassignment
+reassign_columns <- function(df) {
+  df %>%
+    mutate(
+      # Assign the first column as Name
+      Name = column1,
+      # Extract the first age range number as the Age using RegEx. If not present, return NA.
+      Age = case_when(
+        grepl("^\\d{2}-\\d{2}", column2) ~ sub("^(\\d{2})-\\d{2}", "\\1", column2),
+        grepl("^\\d{2}-\\d{2}", column3) ~ sub("^(\\d{2})-\\d{2}", "\\1", column3),
+        grepl("75 or over", column2) ~ "75+",
+        grepl("75 or over", column3) ~ "75+",
+        TRUE ~ NA_character_
+      ),
+      # Identify and assign the Gender. If not present, return NA.
+      Gender = case_when(
+        grepl("Male|Female|Nonbinary|Transgender", column3) ~ column3,
+        grepl("Male|Female|Nonbinary|Transgender", column4) ~ column4,
+        TRUE ~ NA_character_
+      ),
+      # Check for medication duration and assign it MedDur_Months If not present, return NA.
+      MedDur_Months = case_when(
+        grepl("On medication for", column4) ~ column4,
+        grepl("On medication for", column5) ~ column5,
+        TRUE ~ NA_character_
+      ),
+      # Assign Role based on the content or default to 'Patient'.
+      Role = ifelse(grepl("Patient|Caregiver", column5), column5, 
+            ifelse(grepl("Patient|Caregiver", column4), column4, "Patient"))
+    ) %>%
+   
+    select(Name, Age, Gender, MedDur_Months, Role)
+}
+
+# Create 'reassign_columns' function to the separated data
+data_cleaned <- reassign_columns(data_separated)
+
+# Remove the first column from 'raw_cymbalta_reviews'
+data_dropped_column <- select(raw_cymbalta_reviews, -reviewer_info)
+
+# Merge 'data_dropped_column' with 'data11_cleaned'
+# If there is no unique ID to merge by, we'll assume that rows align and we can bind by row number.
+cymbalta_reviews <- bind_cols(data_cleaned, data_dropped_column)
+
+# Custom function to convert medication duration strings to a range in months
+convert_to_month_range <- function(duration) {
+  # Remove the leading space and "On medication for" part
+  duration <- gsub(" On medication for ", "", duration)
+  # Define the conversion pattern
+  pattern <- c("less than 1 month" = "0-1",
+               "1 to 6 months" = "1-6",
+               "6 months to less than 1 year" = "6-12",
+               "1 to less than 2 years" = "12-24",
+               "2 to less than 5 years" = "24-60",
+               "5 to less than 10 years" = "60-120",
+               "10 years or more" = "120+")
+  # Match the pattern and return the corresponding range
+  return(pattern[duration])
+}
+
+# Apply the custom function to the 'Medication Duration' column
+cymbalta_reviews <- cymbalta_reviews %>%
+  mutate(MedDur_Months = ifelse(is.na(MedDur_Months), NA, convert_to_month_range(MedDur_Months)))
+
+# Remove spaces from column 'Role'
+cymbalta_reviews <- cymbalta_reviews %>%
+  mutate(Role = trimws(Role, which = "left"))
+
+cymbalta_reviews <- cymbalta_reviews %>%
+  mutate(Gender = trimws(Gender, which = "left"))
+}
+
+# List of our raw dataset names
+raw_dataset_names <- c("raw_cymbalta_reviews", "raw_effexor_reviews", "raw_lexapro_reviews", "raw_prozac_reviews")
+
+# Apply the cleanup function to each dataset and assign the results to separate variables
+for (dataset_name in raw_dataset_names) {
+  # Use get() to retrieve the value of the variable by name
+  dataset <- get(dataset_name)
+  
+  # Apply the cleanup_data function
+  cleaned_data <- cleanup_data(dataset)
+  
+  # Remove 'raw_' from the name to create the new variable name
+  cleaned_name <- gsub("raw_", "", dataset_name)
+
+  # Use assign() to assign the cleaned data to a new variable in the global environment
+  assign(cleaned_name, cleaned_data, envir = .GlobalEnv)
+}
+
+# Function to categorize age into specified ranges
+categorize_age <- function(age) {
+  case_when(
+    age >= 7 & age <= 12  ~ "7 - 12",
+    age >= 13 & age <= 18 ~ "13 - 18",
+    age >= 19 & age <= 24 ~ "19 - 24",
+    age >= 25 & age <= 34 ~ "25 - 34",
+    age >= 35 & age <= 44 ~ "35 - 44",
+    age >= 45 & age <= 54 ~ "45 - 54",
+    age >= 55 & age <= 64 ~ "55 - 64",
+    age >= 65 & age <= 74 ~ "65 - 74",
+    age >= 75 | age == "75+" ~ "75+",
+    TRUE ~ NA_character_  # For NA or unclassified ages
+  )
+}
+
+# Apply the function to each cleaned dataset
+list_datasets <- list(cymbalta_reviews, effexor_reviews, lexapro_reviews, prozac_reviews)
+names(list_datasets) <- c("cymbalta_reviews", "effexor_reviews", "lexapro_reviews", "prozac_reviews")
+
+list_datasets <- lapply(list_datasets, function(dataset) {
+  dataset %>%
+    mutate(Age = ifelse(!is.na(Age) & Age != "75+", as.numeric(Age), Age),  # Convert to numeric, but keep "75+"
+           Age = categorize_age(Age))  # Apply the age categorization function
+})
+
+# Extracting the datasets back to their respective variables
+list2env(list_datasets, envir = .GlobalEnv)
+```
