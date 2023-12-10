@@ -1,1 +1,19 @@
+---
+title: "Sentiment Analysis of Antidepressant Reviews: Unveiling Gender Dynamics in SSRIs and SNRIs"
+author: "Gavriel Steinmetz-Silber, Noori Selina, Zainab Oketokoun, and Haig Bedros"
+data: "12/13/2023"
+output:
+  html_document:
+    highlight: pygments
+    theme: cerulean
+    toc: true
+    toc_float: true
+  pdf_document: default
+editor_options: 
+  chunk_output_type: console
+---
 
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(eval = TRUE, message = FALSE, warning = FALSE)
+
+```
