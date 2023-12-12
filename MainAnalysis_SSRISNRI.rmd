@@ -3,12 +3,12 @@ title: "Sentiment Analysis of Antidepressant Reviews: Unveiling Gender Dynamics 
 author: "Gavriel Steinmetz-Silber, Noori Selina, Zainab Oketokoun, and Haig Bedros"
 data: "12/13/2023"
 output:
+  pdf_document: default
   html_document:
     highlight: pygments
     theme: cerulean
     toc: true
     toc_float: true
-  pdf_document: default
 editor_options: 
   chunk_output_type: console
 ---
@@ -161,3 +161,664 @@ list_datasets <- lapply(list_datasets, function(dataset) {
 # Extracting the datasets back to their respective variables
 list2env(list_datasets, envir = .GlobalEnv)
 ```
+
+# GAV's updates
+### Step 1: Unnestng. 
+
+We start by unnesting. We need to separate the words of a review such that each row of a dataframe contains a single word.
+
+```{r}
+library(tidytext)
+
+cymbalta_reviews$Date = as.Date(cymbalta_reviews$Date, format = "%m/%d/%Y")
+tidy_cymbalta = cymbalta_reviews %>% 
+  arrange(Date) %>% 
+  mutate(review_id = row_number()) %>% 
+  unnest_tokens(word, Review)
+
+effexor_reviews$Date = as.Date(effexor_reviews$Date, format = "%m/%d/%Y") #Just in case we'd like to sort over time 
+tidy_effexor = effexor_reviews %>% 
+  arrange(Date) %>% 
+  mutate(review_id = row_number()) %>% 
+  unnest_tokens(word, Review)
+
+lexapro_reviews$Date = as.Date(lexapro_reviews$Date, format = "%m/%d/%Y") # in case we want to sort over time?
+tidy_lexapro = lexapro_reviews %>% 
+  arrange(Date) %>% 
+  mutate(review_id = row_number()) %>% 
+  unnest_tokens(word, Review)
+
+prozac_reviews = prozac_reviews %>% rename(Review = review_text, Date = date)
+
+prozac_reviews$Date = as.Date(prozac_reviews$Date, format = "%m/%d/%Y") # in case we want to sort over time?
+tidy_prozac = prozac_reviews %>% 
+  arrange(Date) %>% 
+  mutate(review_id = row_number()) %>% 
+  unnest_tokens(word, Review)
+
+head(tidy_cymbalta) 
+
+```
+
+The reviews are now in tidy format. Each row represents a single word (which later we will score). We also added a column for review_id; this will enable us to sum up the scores of reviews.
+
+1: Unnestng. 
+
+We start by unnesting. We need to separate the words of a review such that each row of a dataframe contains a single word.
+
+```{r}
+library(tidyverse)
+library(tidytext)
+
+cymbalta_reviews$Date = as.Date(cymbalta_reviews$Date, format = "%m/%d/%Y")
+tidy_cymbalta = cymbalta_reviews %>% 
+  arrange(Date) %>% 
+  mutate(review_id = row_number()) %>% 
+  unnest_tokens(word, Review)
+
+effexor_reviews$Date = as.Date(effexor_reviews$Date, format = "%m/%d/%Y") #Just in case we'd like to sort over time 
+tidy_effexor = effexor_reviews %>% 
+  arrange(Date) %>% 
+  mutate(review_id = row_number()) %>% 
+  unnest_tokens(word, Review)
+
+lexapro_reviews$Date = as.Date(lexapro_reviews$Date, format = "%m/%d/%Y") # in case we want to sort over time?
+tidy_lexapro = lexapro_reviews %>% 
+  arrange(Date) %>% 
+  mutate(review_id = row_number()) %>% 
+  unnest_tokens(word, Review)
+
+prozac_reviews$Date = as.Date(prozac_reviews$Date, format = "%m/%d/%Y") # in case we want to sort over time?
+tidy_prozac = prozac_reviews %>% 
+  arrange(Date) %>% 
+  mutate(review_id = row_number()) %>% 
+  unnest_tokens(word, Review)
+
+head(tidy_cymbalta) 
+
+```
+
+The reviews are now in tidy format. Each row represents a single word (which later we will score). We also added a column for review_id; this will enable us to sum up the scores of reviews.
+
+### Step 2: Scoring
+
+We will use the AFINN lexicon to assign each row a score. We'll also remove the words depression and anxiety from the calculations, since a review could be mentioning how their experience with depression has improved due to the drug. 
+
+```{r}
+if (!require("textdata")) {
+    install.packages("textdata", repos = "http://cran.us.r-project.org", dependencies = TRUE)
+    library(afinn)
+}
+
+library(textdata)
+
+afinn = get_sentiments("afinn") 
+
+#essentially making "depression" and "anxiety" stop words:
+tidy_effexor = tidy_effexor %>%
+  filter(!(word %in% c("depression", "anxiety"))) %>% 
+  inner_join(afinn, by = "word") 
+
+effexor_scores = tidy_effexor %>%
+  group_by(review_id, Gender, Age, MedDur_Months, Role, Date) %>%
+  summarize(total_score = sum(value, na.rm = TRUE))
+
+# And the same for the other drugs...
+
+tidy_cymbalta = tidy_cymbalta %>%
+  filter(!(word %in% c("depression", "anxiety"))) %>% 
+  inner_join(afinn, by = "word") 
+
+cymbalta_scores = tidy_cymbalta %>%
+  group_by(review_id, Gender, Age, MedDur_Months, Role, Date) %>%
+  summarize(total_score = sum(value, na.rm = TRUE))
+
+tidy_lexapro = tidy_lexapro %>%
+  filter(!(word %in% c("depression", "anxiety"))) %>% 
+  inner_join(afinn, by = "word") 
+
+lexapro_scores = tidy_lexapro %>%
+  group_by(review_id, Gender, Age, MedDur_Months, Role, Date) %>%
+  summarize(total_score = sum(value, na.rm = TRUE))
+
+tidy_prozac = tidy_prozac %>%
+  filter(!(word %in% c("depression", "anxiety"))) %>% 
+  inner_join(afinn, by = "word") 
+
+prozac_scores = tidy_prozac %>%
+  group_by(review_id, Gender, Age, MedDur_Months, Role, Date) %>%
+  summarize(total_score = sum(value, na.rm = TRUE))
+
+head(cymbalta_scores)
+head(effexor_scores)
+head(lexapro_scores)
+head(prozac_scores)
+```
+
+So now we're in great shape, with dataframes containing the scores of each review for each drug. Furthermore, the dataframes have gender information, so we're able to analyze the reviews by gender.
+
+## Step 3: Analysis
+
+Step 3 is a major one. We analyze the mainframes we've created. We begin the analysis by performing some visualizations
+
+### Visualizations
+
+Again, we are primarily interested in how male and female reviews of these medications may differ. We start by creating box plots for all of the four drugs, filling by gender. We evaluate only male and female since those represent the vast majority of reviews. Similar analysis of other gender identities is warranted; unfortunately we lack the data at this time. We first visualize the SNRIs.
+
+```{r}
+cymbalta_scores = cymbalta_scores %>%
+  filter(Gender %in% c("Male", "Female")) 
+
+cymbalta_scores %>% ggplot(aes(x = Gender, y = total_score, fill = Gender)) +
+  geom_boxplot() +
+  labs(title = "Distribution of Cymbalta Review Scores by Gender", x = "Gender", y = "Score") 
+
+effexor_scores = effexor_scores %>%
+  filter(Gender %in% c("Male", "Female")) 
+
+effexor_scores %>% ggplot(aes(x = Gender, y = total_score, fill = Gender)) +
+  geom_boxplot() +
+  labs(title = "Distribution of Effexor Review Scores by Gender", x = "Gender", y = "Score") 
+```
+
+Interestingly, the results look remarkably similar for male and female reviews of Cymbalta. The IQRs for Effexor are also similar, although the male median is noticeably lower than the female median. We turn now to quickly visualize the SSRIs: 
+
+
+```{r}
+lexapro_scores = lexapro_scores %>%
+  filter(Gender %in% c("Male", "Female")) 
+
+lexapro_scores %>% ggplot(aes(x = Gender, y = total_score, fill = Gender)) +
+  geom_boxplot() +
+  labs(title = "Distribution of Lexapro Review Scores by Gender", x = "Gender", y = "Score") 
+
+prozac_scores = prozac_scores %>%
+  filter(Gender %in% c("Male", "Female")) 
+
+prozac_scores %>% ggplot(aes(x = Gender, y = total_score, fill = Gender)) +
+  geom_boxplot() +
+  labs(title = "Distribution of Prozac Review Scores by Gender", x = "Gender", y = "Score") 
+```
+
+Interestingly, the IQRs for both drugs are quite small--especially male Lexapro reviews. This makes it a bit hard to analyze differences. The male and female medians look close for both drugs, although the male median looks marginally lower for both. At this time, we turn to make a more precise calculation, namely whether the differences in means between male and female reviewers is significant for both SSRIs and SNRIs:
+
+### ANOVA
+
+There are three basic conditions for ANOVA: 
+**1. Independence within and across groups.** This condition is met. 
+**2. Nearly equal variability across the groups.** Granted, we looked at the individual drugs, but the boxplots indicate that this condition is met for both sets of drugs (SNRIs and SSRIs).
+**3. Nearly normal data** I'll quickly check that the data is nearly normal. First, I have to create the two datasets:
+
+```{r}
+snri = rbind(cymbalta_scores, effexor_scores)
+ssri = rbind(lexapro_scores, prozac_scores)
+
+head(snri)
+head(ssri)
+```
+
+Then I'll use histograms to evaluate (near) normality. 
+
+```{r}
+snri %>% ggplot(aes(x = total_score)) + 
+  geom_histogram(binwidth = 5) +
+  labs(title = "Histogram of Scores", 
+       x = "Total Score", 
+       y = "Count") 
+
+ssri %>% ggplot(aes(x = total_score)) + 
+  geom_histogram(binwidth = 4) +
+  labs(title = "Histogram of Scores", 
+       x = "Total Score", 
+       y = "Count") 
+```
+
+They're not perfectly normal, but frankly they're close enough to proceed with ANOVA:
+
+We now do ANOVA for each: 
+
+```{r}
+snri_anova = aov(total_score ~ Gender, data = snri)
+summary(snri_anova)
+
+ssri_anova = aov(total_score ~ Gender, data = ssri)
+summary(ssri_anova)
+```
+
+Immediately we can see that we do not reject the null hypothesis for the SNRI data. In other words, there is no statistically significant difference in male and female scores of reviews for the SNRI drugs. 
+
+On the other hand, there's an extremely low p-value for the SSRI ANOVA. We can reject the null hypothesis and conclude that there is indeed a statistically significant difference in male and female scores of reviews for the SSRI drugs. 
+
+The SSRI data is therefore especially interesting to us. Let's gather some statistics by gender:
+
+```{r}
+gender_stats = ssri %>%
+  group_by(Gender) %>%
+  summarize(
+    Mean = mean(total_score, na.rm = TRUE),
+    Median = median(total_score, na.rm = TRUE),
+    Q1 = quantile(total_score, 0.25, na.rm = TRUE),
+    Q3 = quantile(total_score, 0.75, na.rm = TRUE),
+    IQR = IQR(total_score, na.rm = TRUE),
+    Min = min(total_score, na.rm = TRUE),
+    Max = max(total_score, na.rm = TRUE)
+  )
+
+gender_stats
+
+```
+
+Male reviews have a lower mean and median score. However, the minimum review score and maximum review score are both lower for female reviews than they are for male reviews.
+
+Now, let's consider the question from another angle. Suppose we know someone gave a negative review. Is that person more likely male or female? At first pass, we might be inclined to say male since the male reviews have a lower mean. However, w can define "negative reviews" in different fashions. As such, we can use a shiny app to answer this question (by allowing the user to interactively establish a threshold for what's considered a negative review). By the way, I'm new to shiny apps and I asked my friend (not in the course) to help me with this component. 
+
+```{r}
+library(shiny)
+library(DT)
+
+ui = fluidPage(
+  titlePanel("Dynamic Threshold for SSRI Ratings"), #title (do we like?)
+  #w will do a side and a main...in the side is the slider
+  sidebarLayout(
+    sidebarPanel(
+      sliderInput("threshold", "Threshold for Negative Rating:",
+                  min = -50, max = 0, value = -30)
+    ),
+    #in the main is the table
+    mainPanel(
+      DTOutput("tableOutput") 
+    )
+  )
+)
+
+# server logic, we have inputs from UI and outputs to UI
+server = function(input, output) {
+  output$tableOutput = renderDT({  #inside these curly brackets is what we'll see in the table
+    threshold = input$threshold
+
+probabilities = ssri %>%
+  group_by(Gender) %>%
+  summarize(
+    TotalRatings = n(),
+    NegativeRatings = sum(total_score < threshold, na.rm = TRUE),
+    Probability = NegativeRatings / TotalRatings
+  )
+
+    
+    datatable(probabilities, options = list(pageLength = 2))  
+  })
+}
+
+# run
+shinyApp(ui = ui, server = server)
+
+```
+
+As it turns out, if we define a negative review as anything 0 or lower, or -3 or lower, then it is more likely that the negative reviewer is male. However, if we define it as -1 or lower, -2 or lower, -4 or lower, and so on, then the reviewer is more likely to be female. This provides quite important information as it suggests that while, overall, males may have a worse experience with these drugs, the really bad experiences may belong to female patients. 
+
+Thus far, we've assigned scores to reviews of four drugs, visualized these scores, and conducted ANOVA on SSRI and SNRI drugs to conclude that there is a statistically significant difference between the means of male and female SSRI drug review scores. We also considered the points at which a negative review is more likely to be male or female. We now turn to a more qualitative look at the different drug reviews. 
+
+### Common words
+
+```{r}
+#Split data based on gender
+effexor_male <- effexor_scores %>% filter(Gender == "Male")
+effexor_female <- effexor_scores %>% filter(Gender == "Female")
+cymbalta_male <- cymbalta_scores %>% filter(Gender == "Male")
+cymbalta_female <- cymbalta_scores %>% filter(Gender == "Female")
+lexapro_male <- lexapro_scores %>% filter(Gender == "Male")
+lexapro_female <- lexapro_scores %>% filter(Gender == "Female")
+prozac_male <- prozac_scores %>% filter(Gender == "Male")
+prozac_female <- prozac_scores %>% filter(Gender == "Female")
+```
+
+#### Combining the SSRI Datasets (prozac and lexapro)
+
+```{r}
+# Merge SSRI datasets (tidy_lexapro, tidy_prozac)
+ssri_merged <- bind_rows(tidy_lexapro %>% mutate(drug = "Lexapro"),
+                         tidy_prozac %>% mutate(drug = "Prozac"))
+# Merge SNRI datasets (tidy_effexor, tidy_cymbalta)
+snri_merged <- bind_rows(tidy_effexor %>% mutate(drug = "Effexor"),
+                         tidy_cymbalta %>% mutate(drug = "Cymbalta"))
+```
+
+#### Positive words for SSRI's based on Male and Female
+
+```{r}
+ssri_positive_male <- ssri_merged %>%
+  filter(Gender == "Male" & value > 0) %>%
+  group_by(word) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count)) %>%
+  slice_head(n = 10)
+ssri_positive_female <- ssri_merged %>%
+  filter(Gender == "Female" & value > 0) %>%
+  group_by(word) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count)) %>%
+  slice_head(n = 10)
+```
+
+#### Word cloud for SSRI's Positive words based on Male and Female 
+
+```{r}
+library(wordcloud)
+# Male
+wordcloud(ssri_positive_male$word, ssri_positive_male$count, max.words = 10, scale = c(3, 0.5),
+          main = "SSRI Positive Words - Male")
+```
+
+
+```{r}
+# Female
+wordcloud(ssri_positive_female$word, ssri_positive_female$count, max.words = 10, scale = c(3, 0.5),
+          main = "SSRI Positive Words - Female")
+```
+
+#### Negative words for SSRI's based on Male and Female
+
+```{r}
+ssri_negative_male <- ssri_merged %>%
+  filter(Gender == "Male" & value < 0) %>%
+  group_by(word) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count)) %>%
+  slice_head(n = 10)
+ssri_negative_female <- ssri_merged %>%
+  filter(Gender == "Female" & value < 0) %>%
+  group_by(word) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count)) %>%
+  slice_head(n = 10)
+```
+
+#### Word cloud for SSRI's Negative words based on Male and Female 
+
+```{r}
+library(wordcloud) #Selina, I changed it to wordcloud (from wordcloud2 because it wasn't working)
+# Male
+wordcloud(ssri_negative_male$word, ssri_negative_male$count, max.words = 10, scale = c(3, 0.5),
+          main = "SSRI Negative Words - Male")
+```
+
+
+```{r}
+# Female
+wordcloud(ssri_negative_female$word, ssri_negative_female$count, max.words = 10, scale = c(3, 0.5),
+          main = "SSRI Negative Words - Female")
+```
+
+#### Positive words for SNRI's based on Male and Female
+
+```{r}
+snri_positive_male <- snri_merged %>%
+  filter(Gender == "Male" & value > 0) %>%
+  group_by(word) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count)) %>%
+  slice_head(n = 10)
+snri_positive_female <- snri_merged %>%
+  filter(Gender == "Female" & value > 0) %>%
+  group_by(word) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count)) %>%
+  slice_head(n = 10)
+```
+
+#### Word cloud for SNRI's Positive words based on Male and Female 
+
+```{r}
+# Male
+wordcloud(snri_positive_male$word, snri_positive_male$count, max.words = 10, scale = c(3, 0.5),
+          main = "SNRI Positive Words - Male")
+```
+
+```{r}
+# Female
+wordcloud(snri_positive_female$word, snri_positive_female$count, max.words = 10, scale = c(3, 0.5),
+          main = "SNRI Positive Words - Female")
+```
+
+#### Negative words for SNRI's based on Male and Female
+
+```{r}
+snri_negative_male <- snri_merged %>%
+  filter(Gender == "Male" & value < 0) %>%
+  group_by(word) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count)) %>%
+  slice_head(n = 10)
+snri_negative_female <- snri_merged %>%
+  filter(Gender == "Female" & value < 0) %>%
+  group_by(word) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count)) %>%
+  slice_head(n = 10)
+```
+
+#### Word cloud for SNRI's Negative words based on Male and Female 
+
+```{r}
+# Male
+wordcloud(snri_negative_male$word, snri_negative_male$count, max.words = 10, scale = c(3, 0.5),
+          main = "SNRI Negative Words - Male")
+```
+
+```{r}
+# Female
+wordcloud(snri_negative_female$word, snri_negative_female$count, max.words = 10, scale = c(3, 0.5),
+          main = "SNRI Negative Words - Female")
+```
+
+
+*****************************************************************
+
+# National Center for Health Statistics
+Data Source: https://www.cdc.gov/nchs/hus/data-finder.htm?year=2019&table=Table%20009
+
+
+### 1. Data Loading
+Death rates for suicide, by sex, race, Hispanic origin, and age: United States, selected years 1950-2018
+```{r load}
+# Define the URL of the API
+cdc_api <- "https://data.cdc.gov/resource/9j2v-jamp.csv"
+
+# Read the CSV data from the URL
+suicide_rates <- read.csv(cdc_api)
+
+# Glimpse of our data
+head(suicide_rates)
+```
+
+### 2. Cleaning Up the Data
+
+```{r cln}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(stringr)
+
+# Extract the different characterstic variables from the column stub_label
+suicide_rates <- suicide_rates %>%
+  mutate(
+    # Extract Sex
+    Sex = case_when(
+      str_detect(stub_label, "^Male") ~ "Male",
+      str_detect(stub_label, "^Female") ~ "Female",
+      TRUE ~ NA_character_ # Assign NA to entries that do not start with Male or Female
+    ),
+    # Combine Race and Ethnicity into one column, ignore entries that are just age groups
+    RaceEthnicity = case_when(
+      str_detect(stub_label, "White$") ~ "White",
+      str_detect(stub_label, "Black or African American$") ~ "Black or African American",
+      str_detect(stub_label, "American Indian or Alaska Native$") ~ "American Indian or Alaska Native",
+      str_detect(stub_label, "Asian or Pacific Islander$") ~ "Asian or Pacific Islander",
+      str_detect(stub_label, "Asian$") ~ "Asian",
+      str_detect(stub_label, "Native Hawaiian or Other Pacific Islander$") ~ "Native Hawaiian or Other Pacific Islander",
+      str_detect(stub_label, "Not Hispanic or Latino") ~ "Not Hispanic or Latino",
+      str_detect(stub_label, "Hispanic or Latino") ~ "Hispanic or Latino",
+      str_detect(stub_label, "years$") ~ NA_character_, # Assign NA to entries that are just age groups
+      TRUE ~ "Other/Unknown" # Use this to catch all other entries that don't match previous patterns
+    )
+  )
+
+# Now we can remove the original `stub_label` column if it's no longer needed
+suicide_rates <- suicide_rates %>%
+  select(-stub_label)
+
+# Replace NA values in the 'Sex' column with "All"
+suicide_rates <- suicide_rates %>%
+  mutate(Sex = replace_na(Sex, "All"))
+
+# Replace NA values in the 'RaceEthnicity' column with "Other/Unknown"
+suicide_rates <- suicide_rates %>%
+  mutate(RaceEthnicity = replace_na(RaceEthnicity, "Other/Unknown"))
+
+# Renaming 'estimate' to 'death_rate_est' for readability and drop specified columns
+suicide_rates <- suicide_rates %>%
+  select(-unit_num, -stub_name_num, -stub_name, -stub_label_num, -year_num, -age_num, -flag) %>%
+  rename(death_rate_est = estimate) %>%
+  select(year, everything())
+
+
+# We'll use the 'year' as a continuous x-axis for a line plot
+# Making sure the 'year' column is numeric
+suicide_rates$year <- as.numeric(as.character(suicide_rates$year))
+
+# Aggregate data by year and calculate the average death rate
+suicide_rates_yearly <- suicide_rates %>%
+  group_by(year, Sex) %>%
+  summarise(death_rate_est = mean(death_rate_est, na.rm = TRUE))
+
+# Plot 1: Trends of suicide rates throughout the years where sex = All
+plot1 <- ggplot(data = suicide_rates_yearly, aes(x = year, y = death_rate_est, color = Sex)) +
+  geom_line() +
+  theme_minimal() +
+  labs(
+    title = "Trends of Suicide Rates Throughout the Years (Combined Sexes)",
+    x = "Year",
+    y = "Average Death Rate (per 100,000 individuals)",
+    color = "Sex"
+  ) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Plot 2: Trends of suicide rates throughout the years of the RaceEthnicity
+plot2 <- suicide_rates %>%
+  group_by(year, RaceEthnicity) %>%
+  summarise(death_rate_est = mean(death_rate_est, na.rm = TRUE)) %>%
+  ggplot(aes(x = year, y = death_rate_est, color = RaceEthnicity)) +
+  geom_line() +
+  theme_minimal() +
+  labs(
+    title = "Trends of Suicide Rates Throughout the Years by Race/Ethnicity",
+    x = "Year",
+    y = "Average Death Rate (per 100,000 individuals)",
+    color = "Race/Ethnicity"
+  ) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Plot 3: Trends of suicide rates throughout the years of sex = Female or Male and age != All Ages
+plot3 <- suicide_rates %>%
+  filter(Sex != "All", age != "All Ages") %>%
+  group_by(year, Sex, age) %>%
+  summarise(death_rate_est = mean(death_rate_est, na.rm = TRUE)) %>%
+  ggplot(aes(x = year, y = death_rate_est, color = Sex, group = interaction(Sex, age))) +
+  geom_line() +
+  facet_wrap(~age, scales = "free_y") +
+  theme_minimal() +
+  labs(
+    title = "Trends of Suicide Rates Throughout the Years by Sex and Age Group",
+    x = "Year",
+    y = "Average Death Rate (per 100,000 individuals)",
+    color = "Sex"
+  ) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Printing the plots
+print(plot1)
+print(plot2)
+print(plot3)
+
+```
+Notes about our dataset:
+
+- In our dataset, the age column denotes groups for which the death rates are age-adjusted, expressed per 100,000 individuals, allowing for consistent comparisons by accounting for age distribution differences within the population.
+- The 'All ages' value in the age column category represents an age-adjusted rate, providing a summary measure of the suicide death rate across the entire population, standardized to account for variations in age distribution.
+
+# 3. Data transformation
+
+```{r trans}
+
+# Transforming our data to include a new column for decade
+suicide_rates_transformed <- suicide_rates %>%
+  mutate(Decade = floor(year / 10) * 10) %>%  # Create a new column for Decade
+  group_by(Decade, RaceEthnicity) %>%         # Group by Decade and RaceEthnicity
+  summarize(MeanDeathRate = mean(death_rate_est, na.rm = TRUE))  # Calculate mean death rate
+
+# View the transformed data
+suicide_rates_transformed
+
+# Plotting our transformed data
+plot4 <- ggplot(suicide_rates_transformed, aes(x = as.factor(Decade), y = MeanDeathRate, fill = RaceEthnicity)) +
+  geom_bar(stat = "identity", position = position_dodge()) +
+  theme_minimal() +
+  labs(
+    title = "Mean Suicide Death Rates by Race/Ethnicity and Decade",
+    x = "Decade",
+    y = "Mean Death Rate (per 100,000 individuals)",
+    fill = "Race/Ethnicity"
+  ) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x labels for readability
+
+print(plot4)
+
+```
+
+
+```{r}
+head(suicide_rates_yearly)
+```
+
+```{r}
+head(suicide_rates)
+```
+
+
+```{r}
+head(suicide_rates_transformed)
+```
+
+
+# 4. Statistical Analysis
+Question : IS there a difference in between the death rate of males and females
+In plot _, we see a big discrepancy between the death rate of male and females though the years. Is that significant? The hypothesis we are moving on is that there is no signinfacnt difference between the death rate of males to that of females
+
+@Zainab feel free to add some statistical Analysis here
+Descriptive Stats : describe the data
+#We grouped by Sex and apply tapply() fucntion to calculate the descriptive stats of the death rates
+```{r}
+tapply(suicide_rates_yearly$death_rate_est,suicide_rates_yearly$Sex,summary,na.rm=TRUE)
+```
+
+```{r}
+ggplot(data = suicide_rates_yearly, mapping = aes(x = Sex,y = death_rate_est))+
+  geom_boxplot()+
+  ggtitle("Checking the means and std of Males to Females to All")
+```
+
+OBSERVATION: We see that the avg death rate of males is higher than the avg of sexes togather and  the avge death rate of females.We see the avg death rate of femalves is lower than avg for the group.
+Is this signifcant?
+```{r}
+library(car)
+# Levene's test of equal variances. 
+# Low p-value means the variances are not equal. 
+leveneTest(suicide_rates_yearly$death_rate_est,suicide_rates_yearly$Sex)
+
+```
+RESULTS:The p-value is less than 0.001, so we reject the null hypothesis that there is no difference between the death rates of male to death rates of females
+# 5. Conclusion Support
+
+@Zainab please update
+
+Then I will add a graphic that represents our conclusion
