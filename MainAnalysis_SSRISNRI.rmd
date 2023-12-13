@@ -17,8 +17,22 @@ editor_options:
 knitr::opts_chunk$set(eval = TRUE, message = FALSE, warning = FALSE)
 ```
 
+
+
+
 # Part A: National Center for Health Statistics
 Data Source: https://www.cdc.gov/nchs/hus/data-finder.htm?year=2019&table=Table%20009
+
+#Introduction:
+Since COVID, various news outlets have been reporting on what they are calling a mental health crisis in the United States in individuals of all age groups. The CDC reports that 1 in 25 US Adults lives with serious mental health conditions e.g. major depression. The NIMH reports that mental disorders cost the U.S. 193 billion dollars alone annually in lost earnings.
+
+We wanted to investigate if there were patterns relating to mental health over years to determine if there is a mental health crisis occurring and if so ,is it an one that is on the rise  or are we, the American public, just noticing an existing condition.
+ We looked to the CDC to get annual data on mental health in the U.S. After looking at variety of variables, we decided that death by suicide rates were a traceable phenotype. The initial struggle was having to load the file as an excel and then having to rename columns , changing class types repeatedly and eliminating “N/A”  before we could even transform the data. We fixed this issue by locating an API key.We loaded the data using an API key by first defining the URL, and reading it in as a csv file. The next challenge was splitting variables. For example we had a column that had combined Sex (alone) and Sex + Ethnicity together in one column.
+We use dplyr, tidyverse and stringr, to remove ethnicity from genders and combine Race and Ethnicity related information to one column. We simplified all female related information to the variable = “female” , did the same for the males and combined it all into one column. We removed and rewrote column names. We aggregated variables like e.g.year and sex to create a plot showing the trend of mental health over the years for the different sexes, ethnicities and  age_range groups.
+
+We lead our statistical analysis by having a null hypothesis stating there would be no differences seen for death by suicide rates between sex, between ethnic groups and between age_range groups.
+First we use dplyr to determine summary stats ,and followed this up by using ggplot to compare center(mean) and spread of males rates to female rates, center and spread of the rates between the different ethnic groups and center and spread of the rates between the different age range groups. Then we used the Levene test( under the package “car”) to determine if the variance was equal between the groups. We use LearnBayes package to determine correlation value between death rates and Sex and lastly, we used a one.way test for an ANOVA test to identify the statistical significance of the difference seen in the age groups.
+
 
 # 1. Data Loading
 Death rates for suicide, by sex, race, Hispanic origin, and age: United States, selected years 1950-2018
