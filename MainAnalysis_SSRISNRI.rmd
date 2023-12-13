@@ -20,6 +20,17 @@ knitr::opts_chunk$set(eval = TRUE, message = FALSE, warning = FALSE)
 # Part A: National Center for Health Statistics
 Data Source: https://www.cdc.gov/nchs/hus/data-finder.htm?year=2019&table=Table%20009
 
+# Introduction:
+Since COVID, various news outlets have been reporting on what they are calling a mental health crisis in the United States in individuals of all age groups. The CDC reports that 1 in 25 US Adults lives with serious mental health conditions e.g. major depression. The NIMH reports that mental disorders cost the U.S. 193 billion dollars alone annually in lost earnings.
+
+We wanted to investigate if there were patterns relating to mental health over years to determine if there is a mental health crisis occurring and if so ,is it an one that is on the rise  or are we, the American public, just noticing an existing condition.
+ We looked to the CDC to get annual data on mental health in the U.S. After looking at variety of variables, we decided that death by suicide rates were a traceable phenotype. The initial struggle was having to load the file as an excel and then having to rename columns , changing class types repeatedly and eliminating “N/A”  before we could even transform the data. We fixed this issue by locating an API key.We loaded the data using an API key by first defining the URL, and reading it in as a csv file. The next challenge was splitting variables. For example we had a column that had combined Sex (alone) and Sex + Ethnicity together in one column.
+We use dplyr, tidyverse and stringr, to remove ethnicity from genders and combine Race and Ethnicity related information to one column. We simplified all female related information to the variable = “female” , did the same for the males and combined it all into one column. We removed and rewrote column names. We aggregated variables like e.g.year and sex to create a plot showing the trend of mental health over the years for the different sexes, ethnicities and  age_range groups.
+
+We lead our statistical analysis by having a null hypothesis stating there would be no differences seen for death by suicide rates between sex, between ethnic groups and between age_range groups.
+First we use dplyr to determine summary stats ,and followed this up by using ggplot to compare center(mean) and spread of males rates to female rates, center and spread of the rates between the different ethnic groups and center and spread of the rates between the different age range groups. Then we used the Levene test( under the package “car”) to determine if the variance was equal between the groups. We use LearnBayes package to determine correlation value between death rates and Sex and lastly, we used a one.way test for an ANOVA test to identify the statistical significance of the difference seen in the age groups.
+
+
 # 1. Data Loading
 Death rates for suicide, by sex, race, Hispanic origin, and age: United States, selected years 1950-2018
 ```{r}
@@ -35,8 +46,8 @@ head(suicide_rates)
 
 # 2. Data cleaning and tidying
 ```{r}
-library(stringr)
-library(dplyr)
+library(stringr) 
+library(dplyr) 
 library(tidyverse)
 
 # Extract the different characterstic variables from the column stub_label
@@ -188,9 +199,8 @@ head(suicide_rates_transformed)
 
 # 4. Statistical Analysis
 Question : IS there a difference in between the death rate of males and females
-In plot _, we see a big discrepancy between the death rate of male and females though the years. Is that significant? The hypothesis we are moving on is that there is no signinfacnt difference between the death rate of males to that of females
+In plot _, we see a big discrepancy between the death rate of male and females though the years. Is that significant? The hypothesis we are moving on is that there is no significant difference between the death rate of males to that of females
 
-@Zainab feel free to add some statistical Analysis here
 
 #### Descriptive Stats :
 We grouped by Sex and apply tapply() fucntion to calculate the descriptive stats of the death rates
@@ -210,7 +220,7 @@ ggplot(data = suicide_rates_yearly, mapping = aes(x = Sex,y = death_rate_est))+
 ```
 
 #### OBSERVATION: 
-We see that the avg death rate of males is higher than the avg of sexes togather and  the avge death rate of females.We see the avg death rate of females is lower than avg for the group.
+We see that the avg death rate of males is higher than the avg death rate of the sexes together and  the avg death rate of females.We see the avg death rate of females is lower than avg for the group(rate where the sexes are together).
 
 Is this significant?
 ```{r}
@@ -269,6 +279,8 @@ ggplot(data = suicide_rates, mapping = aes(x = age,y = death_rate_est))+
   ggtitle("Center and Spread between the Age_ranges")
 
 ```
+#### OBSERVATION:
+The center for the death rates of suicides for ages in the data increase as the ages ranges increase. There is trend that as the age increase so does the average death rates of suicides . Each respective box plot is tight, thus not a lot of spread in each age range but they do have outliers of very low values.
 
 #### Checking variances between age groups:
 
@@ -279,6 +291,8 @@ leveneTest(suicide_rates$death_rate_est,suicide_rates$age)
 
 # Low p-value means the variances are not equal. 
 ```
+We reject the null hypothesis , we reject the idea that the death rate has equal variances between all the age_ranges
+
 
 ```{r}
 #install.packages("LearnBayes")
@@ -291,9 +305,10 @@ fit$coefficients
 ```{r}
 oneway.test(death_rate_est ~ age, data = suicide_rates, var.equal = FALSE)
 ```
+#### RESULTS 
+We reject the null hypothesis, so we reject the idea that all the averages of the rates ( of the suicide rates) are equal between the age_ranges
 
-#### Results: 
-We reject the null hypothesis, so we reject that all means (of the suicide rates) are equal between the age_ranges.
+
 
 ```{r}
 tapply(suicide_rates_transformed$MeanDeathRate,suicide_rates_transformed$RaceEthnicity,summary,na.rm=TRUE)
@@ -305,6 +320,16 @@ ggplot(data = suicide_rates_transformed, mapping = aes(x =RaceEthnicity ,y = Mea
   geom_boxplot()+
   ggtitle("Checking the Center and Spread of Ethnic groups")
 ```
+The two highest death rates are observed in American Indians and Whites. The lowest averages of death rates is observed in African-Americans.
+
+# CONCLUSION
+
+We observed a difference in rates between different races/ethnic groups, however we believe that since there is a large amount of missing data , the analysis needed heavy transformation to not calculate a heavily skew  analysis. We do recognize that it was not until 1995 that the NIH mandated that clinical and field work -NIH funded- projects must include participants from POCS and marginalized groups. This may account for the  low values in the POC groups in comparison to the Whites.
+
+Lastly, the increase of the death rates as the years increase, suggest that the country is uncovering  an existing mental health problem or that there is one on the rise.
+
+We decided to further explore Sex differences and engage with data that reflect real-life patient experiences and investigate if there is a pattern indicating a difference in experience between male and female patients.
+
 
 # Part B: Sentiment analysis
 
@@ -831,6 +856,8 @@ Thus far, we've assigned scores to reviews of four drugs, visualized these score
 
 ### Common words
 
+We have begun our analysis by splitting the data based on gender, creating separate datasets for male and female reviews of the 4 antidepressant drugs. This division allows us to investigate potential gender-specific patterns in sentiment and word usage
+
 ```{r}
 #Split data based on gender
 effexor_male <- effexor_scores %>% filter(Gender == "Male")
@@ -845,6 +872,8 @@ prozac_female <- prozac_scores %>% filter(Gender == "Female")
 
 #### Combining the SSRI Datasets (prozac and lexapro)
 
+To gain a comprehensive understanding, we merged datasets for two SSRIs: Lexapro and Prozac, creating a unified dataset for further analysis. Similarly, we merged datasets for SNRIs (Effexor and Cymbalta).
+
 ```{r}
 # Merge SSRI datasets (tidy_lexapro, tidy_prozac)
 ssri_merged <- bind_rows(tidy_lexapro %>% mutate(drug = "Lexapro"),
@@ -855,6 +884,8 @@ snri_merged <- bind_rows(tidy_effexor %>% mutate(drug = "Effexor"),
 ```
 
 #### Positive words for SSRI's based on Male and Female
+
+Our exploration extends to identifying the most common positive words in reviews. We separately analyzed male and female sentiments for SSRIs, focusing on the top 10 positive words for each gender.
 
 ```{r}
 ssri_positive_male <- ssri_merged %>%
@@ -873,6 +904,8 @@ ssri_positive_female <- ssri_merged %>%
 
 #### Word cloud for SSRI's Positive words based on Male and Female 
 
+Visualizing the positive words, we created word clouds for both male and female sentiments. These clouds provide an intuitive representation of the frequency and prominence of positive words in each gender's reviews. We noticed that the most common postitive words were similar in both male and female reviews. 
+
 ```{r}
 library(wordcloud)
 # Male
@@ -888,6 +921,8 @@ wordcloud(ssri_positive_female$word, ssri_positive_female$count, max.words = 10,
 ```
 
 #### Negative words for SSRI's based on Male and Female
+
+Continuing our analysis, we delved into negative words within SSRI reviews. Similar to the positive analysis, we identified the top 10 negative words for both male and female sentiments. The most common words for SSRI negative reviews were also similar between male and female.
 
 ```{r}
 ssri_negative_male <- ssri_merged %>%
@@ -906,6 +941,8 @@ ssri_negative_female <- ssri_merged %>%
 
 #### Word cloud for SSRI's Negative words based on Male and Female 
 
+Visual representations of negative words through word clouds offer insights into the prevalent concerns or criticisms expressed by each gender in their reviews.
+
 ```{r}
 library(wordcloud) #Selina, I changed it to wordcloud (from wordcloud2 because it wasn't working)
 # Male
@@ -921,6 +958,8 @@ wordcloud(ssri_negative_female$word, ssri_negative_female$count, max.words = 10,
 ```
 
 #### Positive words for SNRI's based on Male and Female
+
+Expanding our investigation to SNRIs, we applied the same approach to unveil the most common positive words in reviews for male and female users. Again, the most common were fairly similar amongst male and female for SNRI's as well.
 
 ```{r}
 snri_positive_male <- snri_merged %>%
@@ -939,6 +978,8 @@ snri_positive_female <- snri_merged %>%
 
 #### Word cloud for SNRI's Positive words based on Male and Female 
 
+Visualizing positive words for SNRIs, the corresponding word clouds provide an at-a-glance overview of sentiment trends for both genders.
+
 ```{r}
 # Male
 wordcloud(snri_positive_male$word, snri_positive_male$count, max.words = 10, scale = c(3, 0.5),
@@ -952,6 +993,8 @@ wordcloud(snri_positive_female$word, snri_positive_female$count, max.words = 10,
 ```
 
 #### Negative words for SNRI's based on Male and Female
+
+To maintain a balanced perspective, we also identified the top 10 negative words in reviews for male and female users of SNRIs. Again, the most common words between male and female were similar with a few discrepancies between the words used. 
 
 ```{r}
 snri_negative_male <- snri_merged %>%
@@ -970,6 +1013,8 @@ snri_negative_female <- snri_merged %>%
 
 #### Word cloud for SNRI's Negative words based on Male and Female 
 
+Completing the analysis, word clouds for negative words offer a visual representation of the most frequently mentioned criticisms or concerns expressed by male and female users of SNRIs.
+
 ```{r}
 # Male
 wordcloud(snri_negative_male$word, snri_negative_male$count, max.words = 10, scale = c(3, 0.5),
@@ -982,8 +1027,7 @@ wordcloud(snri_negative_female$word, snri_negative_female$count, max.words = 10,
           main = "SNRI Negative Words - Female")
 ```
 
-# Conclusion
+# Conclusion 
+In conclusion, our extensive analysis of antidepressant reviews from WebMD has provided valuable insights into the gender dynamics of sentiments expressed by users. Our analysis of antidepressant reviews from WebMD sheds light on distinct gender dynamics in user sentiments, particularly concerning SSRIs and SNRIs. SNRIs, such as Cymbalta and Effexor, revealed a gender-neutral trend, indicating consistent experiences among male and female users. In contrast, SSRIs like Lexapro and Prozac exhibited statistically significant differences in sentiment scores, hinting at nuanced emotional expressions between genders. The findings emphasize the necessity of recognizing these variations for a more informed and personalized approach to mental health care.
 
-@Zainab please update
-
-Then I will add a graphic that represents our conclusion
+As for future recommendations, healthcare professionals should be attentive to the diverse ways male and female users express their experiences with antidepressants, and taking note of the adverse reactions that may occur based on gender. Future research endeavors could explore qualitative aspects of reviews to unveil the underlying factors contributing to gender-based differences. Additionally, similar studies should also be conducted on non-binary and transgender patients as well to grasp a better understanding of how the mentioned drugs affect those gender groups as well, this would be a more inclusive approach.
