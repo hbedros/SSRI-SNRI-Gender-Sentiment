@@ -15,11 +15,300 @@ editor_options:
 
 ```{r global_options, include=FALSE}
 knitr::opts_chunk$set(eval = TRUE, message = FALSE, warning = FALSE)
+```
+
+# Part A: National Center for Health Statistics
+Data Source: https://www.cdc.gov/nchs/hus/data-finder.htm?year=2019&table=Table%20009
+
+# 1. Data Loading
+Death rates for suicide, by sex, race, Hispanic origin, and age: United States, selected years 1950-2018
+```{r}
+# Define the URL of the API
+cdc_api <- "https://data.cdc.gov/resource/9j2v-jamp.csv"
+
+# Read the CSV data from the URL
+suicide_rates <- read.csv(cdc_api)
+
+# Glimpse of our data
+head(suicide_rates)
+```
+
+# 2. Data cleaning and tidying
+```{r}
+library(stringr)
+library(dplyr)
+library(tidyverse)
+
+# Extract the different characterstic variables from the column stub_label
+suicide_rates <- suicide_rates %>%
+  mutate(
+    # Extract Sex
+    Sex = case_when(
+      str_detect(stub_label, "^Male") ~ "Male",
+      str_detect(stub_label, "^Female") ~ "Female",
+      TRUE ~ NA_character_ # Assign NA to entries that do not start with Male or Female
+    ),
+    # Combine Race and Ethnicity into one column, ignore entries that are just age groups
+    RaceEthnicity = case_when(
+      str_detect(stub_label, "White$") ~ "White",
+      str_detect(stub_label, "Black or African American$") ~ "Black or African American",
+      str_detect(stub_label, "American Indian or Alaska Native$") ~ "American Indian or Alaska Native",
+      str_detect(stub_label, "Asian or Pacific Islander$") ~ "Asian or Pacific Islander",
+      str_detect(stub_label, "Asian$") ~ "Asian",
+      str_detect(stub_label, "Native Hawaiian or Other Pacific Islander$") ~ "Native Hawaiian or Other Pacific Islander",
+      str_detect(stub_label, "Not Hispanic or Latino") ~ "Not Hispanic or Latino",
+      str_detect(stub_label, "Hispanic or Latino") ~ "Hispanic or Latino",
+      str_detect(stub_label, "years$") ~ NA_character_, # Assign NA to entries that are just age groups
+      TRUE ~ "Other/Unknown" # Use this to catch all other entries that don't match previous patterns
+    )
+  )
+
+# Now we can remove the original `stub_label` column if it's no longer needed
+suicide_rates <- suicide_rates %>%
+  select(-stub_label)
+
+# Replace NA values in the 'Sex' column with "All"
+suicide_rates <- suicide_rates %>%
+  mutate(Sex = replace_na(Sex, "All"))
+
+# Replace NA values in the 'RaceEthnicity' column with "Other/Unknown"
+suicide_rates <- suicide_rates %>%
+  mutate(RaceEthnicity = replace_na(RaceEthnicity, "Other/Unknown"))
+
+# Renaming 'estimate' to 'death_rate_est' for readability and drop specified columns
+suicide_rates <- suicide_rates %>%
+  select(-unit_num, -stub_name_num, -stub_name, -stub_label_num, -year_num, -age_num, -flag) %>%
+  rename(death_rate_est = estimate) %>%
+  select(year, everything())
+
+
+# We'll use the 'year' as a continuous x-axis for a line plot
+# Making sure the 'year' column is numeric
+suicide_rates$year <- as.numeric(as.character(suicide_rates$year))
+
+# Aggregate data by year and calculate the average death rate
+suicide_rates_yearly <- suicide_rates %>%
+  group_by(year, Sex) %>%
+  summarise(death_rate_est = mean(death_rate_est, na.rm = TRUE))
+
+# Plot 1: Trends of suicide rates throughout the years where sex = All
+plot1 <- ggplot(data = suicide_rates_yearly, aes(x = year, y = death_rate_est, color = Sex)) +
+  geom_line() +
+  theme_minimal() +
+  labs(
+    title = "Trends of Suicide Rates Throughout the Years (Combined Sexes)",
+    x = "Year",
+    y = "Average Death Rate (per 100,000 individuals)",
+    color = "Sex"
+  ) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Plot 2: Trends of suicide rates throughout the years of the RaceEthnicity
+plot2 <- suicide_rates %>%
+  group_by(year, RaceEthnicity) %>%
+  summarise(death_rate_est = mean(death_rate_est, na.rm = TRUE)) %>%
+  ggplot(aes(x = year, y = death_rate_est, color = RaceEthnicity)) +
+  geom_line() +
+  theme_minimal() +
+  labs(
+    title = "Trends of Suicide Rates Throughout the Years by Race/Ethnicity",
+    x = "Year",
+    y = "Average Death Rate (per 100,000 individuals)",
+    color = "Race/Ethnicity"
+  ) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Plot 3: Trends of suicide rates throughout the years of sex = Female or Male and age != All Ages
+plot3 <- suicide_rates %>%
+  filter(Sex != "All", age != "All Ages") %>%
+  group_by(year, Sex, age) %>%
+  summarise(death_rate_est = mean(death_rate_est, na.rm = TRUE)) %>%
+  ggplot(aes(x = year, y = death_rate_est, color = Sex, group = interaction(Sex, age))) +
+  geom_line() +
+  facet_wrap(~age, scales = "free_y") +
+  theme_minimal() +
+  labs(
+    title = "Trends of Suicide Rates Throughout the Years by Sex and Age Group",
+    x = "Year",
+    y = "Average Death Rate (per 100,000 individuals)",
+    color = "Sex"
+  ) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Printing the plots
+print(plot1)
+print(plot2)
+print(plot3)
+
+```
+Notes about our dataset:
+
+- In our dataset, the age column denotes groups for which the death rates are age-adjusted, expressed per 100,000 individuals, allowing for consistent comparisons by accounting for age distribution differences within the population.
+- The 'All ages' value in the age column category represents an age-adjusted rate, providing a summary measure of the suicide death rate across the entire population, standardized to account for variations in age distribution.
+
+# 3. Data transformation
+```{r}
+# Transforming our data to include a new column for decade
+suicide_rates_transformed <- suicide_rates %>%
+  mutate(Decade = floor(year / 10) * 10) %>%  # Create a new column for Decade
+  group_by(Decade, RaceEthnicity) %>%         # Group by Decade and RaceEthnicity
+  summarize(MeanDeathRate = mean(death_rate_est, na.rm = TRUE))  # Calculate mean death rate
+
+# View the transformed data
+suicide_rates_transformed
+
+# Plotting our transformed data
+plot4 <- ggplot(suicide_rates_transformed, aes(x = as.factor(Decade), y = MeanDeathRate, fill = RaceEthnicity)) +
+  geom_bar(stat = "identity", position = position_dodge()) +
+  theme_minimal() +
+  labs(
+    title = "Mean Suicide Death Rates by Race/Ethnicity and Decade",
+    x = "Decade",
+    y = "Mean Death Rate (per 100,000 individuals)",
+    fill = "Race/Ethnicity"
+  ) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x labels for readability
+
+print(plot4)
+```
+
+#### Suicide Yearly Rates
+```{r}
+head(suicide_rates_yearly)
+```
+
+#### Suicide Rates
+```{r}
+head(suicide_rates)
+```
+
+```{r}
+head(suicide_rates_transformed)
+```
+
+# 4. Statistical Analysis
+Question : IS there a difference in between the death rate of males and females
+In plot _, we see a big discrepancy between the death rate of male and females though the years. Is that significant? The hypothesis we are moving on is that there is no signinfacnt difference between the death rate of males to that of females
+
+@Zainab feel free to add some statistical Analysis here
+
+#### Descriptive Stats :
+We grouped by Sex and apply tapply() fucntion to calculate the descriptive stats of the death rates
+
+```{r}
+tapply(suicide_rates_yearly$death_rate_est,suicide_rates_yearly$Sex,summary,na.rm=TRUE)
+tapply(suicide_rates_yearly$death_rate_est,suicide_rates_yearly$Sex,sd,na.rm=TRUE)
+```
+
+#### OBSERVATION: 
+The center and spread for death rates males is a lot higher than females alone and with the combined sexes. Infact the center or average death rate for males is around 4-fold of that of the females
+
+```{r}
+ggplot(data = suicide_rates_yearly, mapping = aes(x = Sex,y = death_rate_est))+
+  geom_boxplot()+
+  ggtitle("Checking the means and std of Males to Females to All")
+```
+
+#### OBSERVATION: 
+We see that the avg death rate of males is higher than the avg of sexes togather and  the avge death rate of females.We see the avg death rate of females is lower than avg for the group.
+
+Is this significant?
+```{r}
+library(car)
+# Levene's test of equal variances. 
+# Low p-value means the variances are not equal. 
+leveneTest(suicide_rates_yearly$death_rate_est,suicide_rates_yearly$Sex)
+```
+
+# 5. Results:
+The p-value is less than 0.001, so we reject the null hypothesis that there is no difference between the death rates of male to death rates of females.
+
+```{r}
+library(LearnBayes)
+
+dfA = na.omit(suicide_rates_yearly)
+
+# Code 'Female' as 0 and 'Male' as 1 in the 'Sex' column
+# This assumes that dfA$Sex is a factor or character vector
+dfA$Sex <- as.numeric(dfA$Sex == 'Male')
+
+# Remove rows where 'Sex' is "All"
+dfA <- dfA[dfA$Sex != "All", , drop = FALSE]
+
+# Ensure all columns are numeric for correlation; if not, convert them
+dfA_numeric <- data.frame(lapply(dfA, function(x) if(is.numeric(x)) x else as.numeric(as.character(x))))
+
+# Remove any NA values that could cause cor() to fail
+dfA_numeric <- na.omit(dfA_numeric)
+
+# Calculate the correlation matrix for numeric data frame
+cor_matrix <- cor(dfA_numeric)
+
+# Print the correlation matrix
+print(cor_matrix)
 
 ```
 
+#### Looking at Ages:
 
-## Web Scraping 
+```{r}
+#tapply(suicide_rates$death_rate_est,suicide_rates$ages,summary,na.rm=TRUE)
+tapply(suicide_rates$death_rate_est,suicide_rates$age,summary,na.rm=TRUE)
+
+```
+
+```{r}
+ggplot(data = suicide_rates_yearly, mapping = aes(x = Sex,y = death_rate_est))+
+  geom_boxplot()+
+  ggtitle("Checking the means and std of Males to Females to All")
+```
+
+```{r}
+ggplot(data = suicide_rates, mapping = aes(x = age,y = death_rate_est))+
+  geom_boxplot()+
+  ggtitle("Center and Spread between the Age_ranges")
+
+```
+
+#### Checking variances between age groups:
+
+```{r}
+library(car)
+# Levene's test of equal variances. 
+leveneTest(suicide_rates$death_rate_est,suicide_rates$age)
+
+# Low p-value means the variances are not equal. 
+```
+
+```{r}
+#install.packages("LearnBayes")
+library(LearnBayes)
+fit = lm(death_rate_est ~ age, data = suicide_rates,x=TRUE, y=TRUE)
+posterior_sims = blinreg(fit$y,fit$x,5000)
+fit$coefficients
+```
+
+```{r}
+oneway.test(death_rate_est ~ age, data = suicide_rates, var.equal = FALSE)
+```
+
+#### Results: 
+We reject the null hypothesis, so we reject that all means (of the suicide rates) are equal between the age_ranges.
+
+```{r}
+tapply(suicide_rates_transformed$MeanDeathRate,suicide_rates_transformed$RaceEthnicity,summary,na.rm=TRUE)
+```
+
+```{r}
+library(ggplot2)
+ggplot(data = suicide_rates_transformed, mapping = aes(x =RaceEthnicity ,y = MeanDeathRate))+
+  geom_boxplot()+
+  ggtitle("Checking the Center and Spread of Ethnic groups")
+```
+
+# Part B: Sentiment analysis
+
+# 1. Web Scraping 
 
 To gather the reviews, we will scrape from WebMD (e.g. https://reviews.webmd.com/drugs/drugreview-63990-lexapro-oral). All the pages have a similar format. There appear to be boxes, with some basic user info on top and then the content of the review below. There are also some star ratings, but we will rely exclusively on the text for this project.
 
@@ -29,10 +318,9 @@ Now, one struggle is that there are only 20 reviews on a page but each drug has 
 
 In fact, for all the drugs, the latter part of the website URL is the same. So, we will define a function and have two arguments: the start of the URL and the number of pages:
 
-```{r}
+```{r, eval=FALSE}
 library(tidyverse)
 library(rvest)
-
 
 scrape_reviews = function(url_beginning, num_pages) {
   reviews_data = list()
@@ -60,13 +348,11 @@ scrape_reviews = function(url_beginning, num_pages) {
 }
 ```
 
-
 Now, we *could* just pass the different drugs into the function (e.g. cymbalta_reviews_df = scrape_reviews("https://reviews.webmd.com/drugs/drugreview-91491-cymbalta-oral?conditionid=&sortval=1&page=", 234)).
 
 However, this will all take a while so we can use parallel computing to hurry matters up. We start by defining the tasks for the workers. We define tasks a list of all the main tasks (i.e. one for cymbalta, one for effexor, and so on). We also have a list for each drug--that contains the two relevant paramaters.  
 
-```{r}
-
+```{r, eval=FALSE}
 library(parallel)
 library(doParallel)
 
@@ -81,7 +367,7 @@ tasks = list(
 
 Now we set up th parallel backend and use foreach and %dopar% to loop in parallel. We also have to ensure that all of these new environments have the rvest package since it's necessary for the scrape_reviews function.
 
-```{r}
+```{r, eval=FALSE}
 n.cores = parallel::detectCores() - 1 
 my.cluster = parallel::makeCluster(n.cores, type = "FORK")
 doParallel::registerDoParallel(cl = my.cluster)
@@ -99,9 +385,11 @@ prozac_df = results$prozac_reviews_df
 lexapro_df = results$lexapro_df
 ```
 
-On our end, we will now use write.csv and upload the CSVs to GitHub to ensure reproducability. We move now to cleaning and tidying.  
+For processing and publishing purposes on RPubs, we marked the above scraping code with `{r, eval=FALSE}` to prevent it from running. The `if` statement was used solely to demonstrate our data acquisition method.
 
-## Data loading, cleaning, and tidying
+We generated CSV files from the above code and imported them into GitHub using `write.csv`. By uploading the CSVs to GitHub, we ensure reproducibility. We now proceed to the data cleaning and tidying phase.
+
+# 2. Data loading, cleaning, and tidying
 
 ```{r data}
 library(httr)
@@ -247,8 +535,7 @@ list_datasets <- lapply(list_datasets, function(dataset) {
 list2env(list_datasets, envir = .GlobalEnv)
 ```
 
-# GAV's updates
-### Step 1: Unnestng. 
+### 3. Unnestng
 
 We start by unnesting. We need to separate the words of a review such that each row of a dataframe contains a single word.
 
@@ -292,9 +579,6 @@ The reviews are now in tidy format. Each row represents a single word (which lat
 We start by unnesting. We need to separate the words of a review such that each row of a dataframe contains a single word.
 
 ```{r}
-library(tidyverse)
-library(tidytext)
-
 cymbalta_reviews$Date = as.Date(cymbalta_reviews$Date, format = "%m/%d/%Y")
 tidy_cymbalta = cymbalta_reviews %>% 
   arrange(Date) %>% 
@@ -325,7 +609,7 @@ head(tidy_cymbalta)
 
 The reviews are now in tidy format. Each row represents a single word (which later we will score). We also added a column for review_id; this will enable us to sum up the scores of reviews.
 
-### Step 2: Scoring
+### 4. Scoring
 
 We will use the AFINN lexicon to assign each row a score. We'll also remove the words depression and anxiety from the calculations, since a review could be mentioning how their experience with depression has improved due to the drug. 
 
@@ -382,15 +666,17 @@ head(prozac_scores)
 
 So now we're in great shape, with dataframes containing the scores of each review for each drug. Furthermore, the dataframes have gender information, so we're able to analyze the reviews by gender.
 
-## Step 3: Analysis
+## 5. Analysis
 
 Step 3 is a major one. We analyze the mainframes we've created. We begin the analysis by performing some visualizations
 
-### Visualizations
+### 6. Visualizations
 
 Again, we are primarily interested in how male and female reviews of these medications may differ. We start by creating box plots for all of the four drugs, filling by gender. We evaluate only male and female since those represent the vast majority of reviews. Similar analysis of other gender identities is warranted; unfortunately we lack the data at this time. We first visualize the SNRIs.
 
 ```{r}
+library(ggplot2)
+
 cymbalta_scores = cymbalta_scores %>%
   filter(Gender %in% c("Male", "Female")) 
 
@@ -427,7 +713,7 @@ prozac_scores %>% ggplot(aes(x = Gender, y = total_score, fill = Gender)) +
 
 Interestingly, the IQRs for both drugs are quite small--especially male Lexapro reviews. This makes it a bit hard to analyze differences. The male and female medians look close for both drugs, although the male median looks marginally lower for both. At this time, we turn to make a more precise calculation, namely whether the differences in means between male and female reviewers is significant for both SSRIs and SNRIs:
 
-### ANOVA
+### 7. ANOVA
 
 There are three basic conditions for ANOVA: 
 **1. Independence within and across groups.** This condition is met. 
@@ -696,213 +982,7 @@ wordcloud(snri_negative_female$word, snri_negative_female$count, max.words = 10,
           main = "SNRI Negative Words - Female")
 ```
 
-
-*****************************************************************
-
-# National Center for Health Statistics
-Data Source: https://www.cdc.gov/nchs/hus/data-finder.htm?year=2019&table=Table%20009
-
-
-### 1. Data Loading
-Death rates for suicide, by sex, race, Hispanic origin, and age: United States, selected years 1950-2018
-```{r load}
-# Define the URL of the API
-cdc_api <- "https://data.cdc.gov/resource/9j2v-jamp.csv"
-
-# Read the CSV data from the URL
-suicide_rates <- read.csv(cdc_api)
-
-# Glimpse of our data
-head(suicide_rates)
-```
-
-### 2. Cleaning Up the Data
-
-```{r cln}
-library(dplyr)
-library(tidyr)
-library(ggplot2)
-library(stringr)
-
-# Extract the different characterstic variables from the column stub_label
-suicide_rates <- suicide_rates %>%
-  mutate(
-    # Extract Sex
-    Sex = case_when(
-      str_detect(stub_label, "^Male") ~ "Male",
-      str_detect(stub_label, "^Female") ~ "Female",
-      TRUE ~ NA_character_ # Assign NA to entries that do not start with Male or Female
-    ),
-    # Combine Race and Ethnicity into one column, ignore entries that are just age groups
-    RaceEthnicity = case_when(
-      str_detect(stub_label, "White$") ~ "White",
-      str_detect(stub_label, "Black or African American$") ~ "Black or African American",
-      str_detect(stub_label, "American Indian or Alaska Native$") ~ "American Indian or Alaska Native",
-      str_detect(stub_label, "Asian or Pacific Islander$") ~ "Asian or Pacific Islander",
-      str_detect(stub_label, "Asian$") ~ "Asian",
-      str_detect(stub_label, "Native Hawaiian or Other Pacific Islander$") ~ "Native Hawaiian or Other Pacific Islander",
-      str_detect(stub_label, "Not Hispanic or Latino") ~ "Not Hispanic or Latino",
-      str_detect(stub_label, "Hispanic or Latino") ~ "Hispanic or Latino",
-      str_detect(stub_label, "years$") ~ NA_character_, # Assign NA to entries that are just age groups
-      TRUE ~ "Other/Unknown" # Use this to catch all other entries that don't match previous patterns
-    )
-  )
-
-# Now we can remove the original `stub_label` column if it's no longer needed
-suicide_rates <- suicide_rates %>%
-  select(-stub_label)
-
-# Replace NA values in the 'Sex' column with "All"
-suicide_rates <- suicide_rates %>%
-  mutate(Sex = replace_na(Sex, "All"))
-
-# Replace NA values in the 'RaceEthnicity' column with "Other/Unknown"
-suicide_rates <- suicide_rates %>%
-  mutate(RaceEthnicity = replace_na(RaceEthnicity, "Other/Unknown"))
-
-# Renaming 'estimate' to 'death_rate_est' for readability and drop specified columns
-suicide_rates <- suicide_rates %>%
-  select(-unit_num, -stub_name_num, -stub_name, -stub_label_num, -year_num, -age_num, -flag) %>%
-  rename(death_rate_est = estimate) %>%
-  select(year, everything())
-
-
-# We'll use the 'year' as a continuous x-axis for a line plot
-# Making sure the 'year' column is numeric
-suicide_rates$year <- as.numeric(as.character(suicide_rates$year))
-
-# Aggregate data by year and calculate the average death rate
-suicide_rates_yearly <- suicide_rates %>%
-  group_by(year, Sex) %>%
-  summarise(death_rate_est = mean(death_rate_est, na.rm = TRUE))
-
-# Plot 1: Trends of suicide rates throughout the years where sex = All
-plot1 <- ggplot(data = suicide_rates_yearly, aes(x = year, y = death_rate_est, color = Sex)) +
-  geom_line() +
-  theme_minimal() +
-  labs(
-    title = "Trends of Suicide Rates Throughout the Years (Combined Sexes)",
-    x = "Year",
-    y = "Average Death Rate (per 100,000 individuals)",
-    color = "Sex"
-  ) +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
-# Plot 2: Trends of suicide rates throughout the years of the RaceEthnicity
-plot2 <- suicide_rates %>%
-  group_by(year, RaceEthnicity) %>%
-  summarise(death_rate_est = mean(death_rate_est, na.rm = TRUE)) %>%
-  ggplot(aes(x = year, y = death_rate_est, color = RaceEthnicity)) +
-  geom_line() +
-  theme_minimal() +
-  labs(
-    title = "Trends of Suicide Rates Throughout the Years by Race/Ethnicity",
-    x = "Year",
-    y = "Average Death Rate (per 100,000 individuals)",
-    color = "Race/Ethnicity"
-  ) +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
-# Plot 3: Trends of suicide rates throughout the years of sex = Female or Male and age != All Ages
-plot3 <- suicide_rates %>%
-  filter(Sex != "All", age != "All Ages") %>%
-  group_by(year, Sex, age) %>%
-  summarise(death_rate_est = mean(death_rate_est, na.rm = TRUE)) %>%
-  ggplot(aes(x = year, y = death_rate_est, color = Sex, group = interaction(Sex, age))) +
-  geom_line() +
-  facet_wrap(~age, scales = "free_y") +
-  theme_minimal() +
-  labs(
-    title = "Trends of Suicide Rates Throughout the Years by Sex and Age Group",
-    x = "Year",
-    y = "Average Death Rate (per 100,000 individuals)",
-    color = "Sex"
-  ) +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
-# Printing the plots
-print(plot1)
-print(plot2)
-print(plot3)
-
-```
-Notes about our dataset:
-
-- In our dataset, the age column denotes groups for which the death rates are age-adjusted, expressed per 100,000 individuals, allowing for consistent comparisons by accounting for age distribution differences within the population.
-- The 'All ages' value in the age column category represents an age-adjusted rate, providing a summary measure of the suicide death rate across the entire population, standardized to account for variations in age distribution.
-
-# 3. Data transformation
-
-```{r trans}
-
-# Transforming our data to include a new column for decade
-suicide_rates_transformed <- suicide_rates %>%
-  mutate(Decade = floor(year / 10) * 10) %>%  # Create a new column for Decade
-  group_by(Decade, RaceEthnicity) %>%         # Group by Decade and RaceEthnicity
-  summarize(MeanDeathRate = mean(death_rate_est, na.rm = TRUE))  # Calculate mean death rate
-
-# View the transformed data
-suicide_rates_transformed
-
-# Plotting our transformed data
-plot4 <- ggplot(suicide_rates_transformed, aes(x = as.factor(Decade), y = MeanDeathRate, fill = RaceEthnicity)) +
-  geom_bar(stat = "identity", position = position_dodge()) +
-  theme_minimal() +
-  labs(
-    title = "Mean Suicide Death Rates by Race/Ethnicity and Decade",
-    x = "Decade",
-    y = "Mean Death Rate (per 100,000 individuals)",
-    fill = "Race/Ethnicity"
-  ) +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x labels for readability
-
-print(plot4)
-
-```
-
-
-```{r}
-head(suicide_rates_yearly)
-```
-
-```{r}
-head(suicide_rates)
-```
-
-
-```{r}
-head(suicide_rates_transformed)
-```
-
-
-# 4. Statistical Analysis
-Question : IS there a difference in between the death rate of males and females
-In plot _, we see a big discrepancy between the death rate of male and females though the years. Is that significant? The hypothesis we are moving on is that there is no signinfacnt difference between the death rate of males to that of females
-
-@Zainab feel free to add some statistical Analysis here
-Descriptive Stats : describe the data
-#We grouped by Sex and apply tapply() fucntion to calculate the descriptive stats of the death rates
-```{r}
-tapply(suicide_rates_yearly$death_rate_est,suicide_rates_yearly$Sex,summary,na.rm=TRUE)
-```
-
-```{r}
-ggplot(data = suicide_rates_yearly, mapping = aes(x = Sex,y = death_rate_est))+
-  geom_boxplot()+
-  ggtitle("Checking the means and std of Males to Females to All")
-```
-
-OBSERVATION: We see that the avg death rate of males is higher than the avg of sexes togather and  the avge death rate of females.We see the avg death rate of femalves is lower than avg for the group.
-Is this signifcant?
-```{r}
-library(car)
-# Levene's test of equal variances. 
-# Low p-value means the variances are not equal. 
-leveneTest(suicide_rates_yearly$death_rate_est,suicide_rates_yearly$Sex)
-
-```
-RESULTS:The p-value is less than 0.001, so we reject the null hypothesis that there is no difference between the death rates of male to death rates of females
-# 5. Conclusion Support
+# Conclusion
 
 @Zainab please update
 
