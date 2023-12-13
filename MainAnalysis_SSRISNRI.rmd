@@ -18,6 +18,91 @@ knitr::opts_chunk$set(eval = TRUE, message = FALSE, warning = FALSE)
 
 ```
 
+
+## Web Scraping 
+
+To gather the reviews, we will scrape from WebMD (e.g. https://reviews.webmd.com/drugs/drugreview-63990-lexapro-oral). All the pages have a similar format. There appear to be boxes, with some basic user info on top and then the content of the review below. There are also some star ratings, but we will rely exclusively on the text for this project.
+
+Inspecting the webpages further, we see that each review is under the headers of review sections are marked as ".card-header"). So we can use this as part of a loop. Further, within each review, we can find the user informatoin by looking for the class .details. We can find the date by looking for the class .date. And we can find the text of the review by looking for the immediately following class .description. that contains a paragraph of the class "description-text."
+
+Now, one struggle is that there are only 20 reviews on a page but each drug has many, many reviews. For Lexapro, I see there are 215 pages (so presumably around 215 x 19 to 20 total reviews). However, for each drug there's also a consistent format. Taking Lexapro again, the format is: "https://reviews.webmd.com/drugs/drugreview-63990-lexapro-oral?conditionid=&sortval=1&page=[page number]&next_page=true"
+
+In fact, for all the drugs, the latter part of the website URL is the same. So, we will define a function and have two arguments: the start of the URL and the number of pages:
+
+```{r}
+library(tidyverse)
+library(rvest)
+
+
+scrape_reviews = function(url_beginning, num_pages) {
+  reviews_data = list()
+  for (page in 1:num_pages) {
+    url = paste0(url_beginning, page, "&next_page=true") #this will make up the full URL
+    webpage = read_html(url)
+    
+    review_headers = html_nodes(webpage, ".card-header")
+    reviews_data_page = list()
+    
+    for (header in review_headers) {
+      user_info = html_text(html_nodes(header, ".details"))
+      date = html_text(html_nodes(header, ".date"))
+      review_text = html_text(html_nodes(header, xpath = "./following-sibling::div[@class='description']/p[@class='description-text']"))
+      page_data = list(user_info = user_info, date = date, review_text = review_text)
+      reviews_data_page = append(reviews_data_page, list(page_data)) #adding this review to the page review list
+    }
+    
+    reviews_data = append(reviews_data, reviews_data_page) # Adding this page's reviews to the list of all pages' reviews for this drug
+  }
+  
+  reviews_df = data.frame(do.call(rbind, reviews_data))
+  colnames(reviews_df) = c("reviewer_info", "Date", "Review")
+  return(reviews_df)
+}
+```
+
+
+Now, we *could* just pass the different drugs into the function (e.g. cymbalta_reviews_df = scrape_reviews("https://reviews.webmd.com/drugs/drugreview-91491-cymbalta-oral?conditionid=&sortval=1&page=", 234)).
+
+However, this will all take a while so we can use parallel computing to hurry matters up. We start by defining the tasks for the workers. We define tasks a list of all the main tasks (i.e. one for cymbalta, one for effexor, and so on). We also have a list for each drug--that contains the two relevant paramaters.  
+
+```{r}
+
+library(parallel)
+library(doParallel)
+
+# the tasks are a list of 
+tasks = list(
+  list(url_beginning = "https://reviews.webmd.com/drugs/drugreview-91491-cymbalta-oral?conditionid=&sortval=1&page=", num_pages = 234),
+  list(url_beginning = "https://reviews.webmd.com/drugs/drugreview-4896-effexor-xr-oral?conditionid=&sortval=", num_pages = 178),
+  list(url_beginning = "https://reviews.webmd.com/drugs/drugreview-6997-prozac-oral?conditionid=&sortval=1&page=", num_pages = 88),
+  list(url_beginning = "https://reviews.webmd.com/drugs/drugreview-63990-lexapro-oral?conditionid=&sortval=", num_pages = 215)
+)
+```
+
+Now we set up th parallel backend and use foreach and %dopar% to loop in parallel. We also have to ensure that all of these new environments have the rvest package since it's necessary for the scrape_reviews function.
+
+```{r}
+n.cores = parallel::detectCores() - 1 
+my.cluster = parallel::makeCluster(n.cores, type = "FORK")
+doParallel::registerDoParallel(cl = my.cluster)
+
+results = foreach(task = tasks, .packages = c("rvest")) %dopar% {
+  scrape_reviews(task$url_beginning, task$num_pages)
+}
+
+parallel::stopCluster(my.cluster)
+
+names(results) = c("cymbalta_reviews_df", "effexor_reviews_df", "prozac_reviews_df", "lexapro_df")
+cymbalta_df = results$cymbalta_reviews_df
+effexor_df = results$effexor_reviews_df
+prozac_df = results$prozac_reviews_df
+lexapro_df = results$lexapro_df
+```
+
+On our end, we will now use write.csv and upload the CSVs to GitHub to ensure reproducability. We move now to cleaning and tidying.  
+
+## Data loading, cleaning, and tidying
+
 ```{r data}
 library(httr)
 
