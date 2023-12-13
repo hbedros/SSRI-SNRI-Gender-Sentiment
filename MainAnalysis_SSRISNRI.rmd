@@ -188,9 +188,9 @@ head(suicide_rates_transformed)
 
 # 4. Statistical Analysis
 Question : IS there a difference in between the death rate of males and females
-In plot _, we see a big discrepancy between the death rate of male and females though the years. Is that significant? The hypothesis we are moving on is that there is no signinfacnt difference between the death rate of males to that of females
+In plot _, we see a big discrepancy between the death rate of male and females though the years. Is that significant? The hypothesis we are moving on is that there is no significant difference between the death rate of males to that of females
 
-@Zainab feel free to add some statistical Analysis here
+Statistical Analysis 
 
 #### Descriptive Stats :
 We grouped by Sex and apply tapply() fucntion to calculate the descriptive stats of the death rates
@@ -210,7 +210,7 @@ ggplot(data = suicide_rates_yearly, mapping = aes(x = Sex,y = death_rate_est))+
 ```
 
 #### OBSERVATION: 
-We see that the avg death rate of males is higher than the avg of sexes togather and  the avge death rate of females.We see the avg death rate of females is lower than avg for the group.
+We see that the avg death rate of males is higher than the avg death rate of the sexes together and  the avg death rate of females.We see the avg death rate of females is lower than avg for the group(rate where the sexes are together).
 
 Is this significant?
 ```{r}
@@ -269,6 +269,8 @@ ggplot(data = suicide_rates, mapping = aes(x = age,y = death_rate_est))+
   ggtitle("Center and Spread between the Age_ranges")
 
 ```
+#OBSERVATION:
+The center for the death rates of suicides for ages in the data increase as the ages ranges increase. There is trend that as the age increase so does the average death rates of suicides . Each respective box plot is tight, thus not a lot of spread in each age range but they do have outliers of very low values.
 
 #### Checking variances between age groups:
 
@@ -279,6 +281,8 @@ leveneTest(suicide_rates$death_rate_est,suicide_rates$age)
 
 # Low p-value means the variances are not equal. 
 ```
+We reject the null hypothesis , we reject the idea that the death rate has equal variances between all the age_ranges
+
 
 ```{r}
 #install.packages("LearnBayes")
@@ -291,9 +295,10 @@ fit$coefficients
 ```{r}
 oneway.test(death_rate_est ~ age, data = suicide_rates, var.equal = FALSE)
 ```
+###RESULTS 
+We reject the null hypothesis, so we reject the idea that all the averages of the rates ( of the suicide rates) are equal between the age_ranges
 
-#### Results: 
-We reject the null hypothesis, so we reject that all means (of the suicide rates) are equal between the age_ranges.
+
 
 ```{r}
 tapply(suicide_rates_transformed$MeanDeathRate,suicide_rates_transformed$RaceEthnicity,summary,na.rm=TRUE)
@@ -305,6 +310,16 @@ ggplot(data = suicide_rates_transformed, mapping = aes(x =RaceEthnicity ,y = Mea
   geom_boxplot()+
   ggtitle("Checking the Center and Spread of Ethnic groups")
 ```
+The two highest death rates are observed in American Indians and Whites. The lowest averages of death rates is observed in African-Americans.
+
+###CONCLUSION
+
+We observed a difference in rates between different races/ethnic groups, however we believe that since there is a large amount of missing data , the analysis needed heavy transformation to not calculate a heavily skew  analysis. We do recognize that it was not until 1995 that the NIH mandated that clinical and field work -NIH funded- projects must include participants from POCS and marginalized groups. This may account for the  low values in the POC groups in comparison to the Whites.
+
+Lastly, the increase of the death rates as the years increase, suggest that the country is uncovering  an existing mental health problem or that there is one on the rise.
+
+We decided to further explore Sex differences and engage with data that reflect real-life patient experiences and investigate if there is a pattern indicating a difference in experience between male and female patients.
+
 
 # Part B: Sentiment analysis
 
