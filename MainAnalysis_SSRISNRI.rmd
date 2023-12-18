@@ -20,7 +20,7 @@ knitr::opts_chunk$set(eval = TRUE, message = FALSE, warning = FALSE)
 # Part A: National Center for Health Statistics
 Data Source: https://www.cdc.gov/nchs/hus/data-finder.htm?year=2019&table=Table%20009
 
-# Introduction:
+## Introduction:
 Since COVID, various news outlets have been reporting on what they are calling a mental health crisis in the United States in individuals of all age groups. The CDC reports that 1 in 25 US Adults lives with serious mental health conditions e.g. major depression. The NIMH reports that mental disorders cost the U.S. 193 billion dollars alone annually in lost earnings.
 
 We wanted to investigate if there were patterns relating to mental health over years to determine if there is a mental health crisis occurring and if so ,is it an one that is on the rise  or are we, the American public, just noticing an existing condition.
@@ -31,7 +31,7 @@ We lead our statistical analysis by having a null hypothesis stating there would
 First we use dplyr to determine summary stats ,and followed this up by using ggplot to compare center(mean) and spread of males rates to female rates, center and spread of the rates between the different ethnic groups and center and spread of the rates between the different age range groups. Then we used the Levene test( under the package “car”) to determine if the variance was equal between the groups. We use LearnBayes package to determine correlation value between death rates and Sex and lastly, we used a one.way test for an ANOVA test to identify the statistical significance of the difference seen in the age groups.
 
 
-# 1. Data Loading
+## 1. Data Loading
 Death rates for suicide, by sex, race, Hispanic origin, and age: United States, selected years 1950-2018
 ```{r}
 # Define the URL of the API
@@ -44,13 +44,13 @@ suicide_rates <- read.csv(cdc_api)
 head(suicide_rates)
 ```
 
-# 2. Data cleaning and tidying
+## 2. Data cleaning and tidying
 ```{r}
 library(stringr) 
 library(dplyr) 
 library(tidyverse)
 
-# Extract the different characterstic variables from the column stub_label
+# Extract the different characteristic variables from the column stub_label
 suicide_rates <- suicide_rates %>%
   mutate(
     # Extract Sex
@@ -157,7 +157,7 @@ Notes about our dataset:
 - In our dataset, the age column denotes groups for which the death rates are age-adjusted, expressed per 100,000 individuals, allowing for consistent comparisons by accounting for age distribution differences within the population.
 - The 'All ages' value in the age column category represents an age-adjusted rate, providing a summary measure of the suicide death rate across the entire population, standardized to account for variations in age distribution.
 
-# 3. Data transformation
+## 3. Data transformation
 ```{r}
 # Transforming our data to include a new column for decade
 suicide_rates_transformed <- suicide_rates %>%
@@ -197,13 +197,13 @@ head(suicide_rates)
 head(suicide_rates_transformed)
 ```
 
-# 4. Statistical Analysis
-Question : IS there a difference in between the death rate of males and females
-In plot _, we see a big discrepancy between the death rate of male and females though the years. Is that significant? The hypothesis we are moving on is that there is no significant difference between the death rate of males to that of females
+## 4. Statistical Analysis
+Question : IS there a difference in between the death rate of males and females?
+In plot _, we see a big discrepancy between the death rate of male and females though the years. Is that significant? The hypothesis we are moving on is that there is no significant difference between the death rate of males to that of females.
 
 
 #### Descriptive Stats :
-We grouped by Sex and apply tapply() fucntion to calculate the descriptive stats of the death rates
+We grouped by Sex and apply tapply() function to calculate the descriptive stats of the death rates
 
 ```{r}
 tapply(suicide_rates_yearly$death_rate_est,suicide_rates_yearly$Sex,summary,na.rm=TRUE)
@@ -211,7 +211,7 @@ tapply(suicide_rates_yearly$death_rate_est,suicide_rates_yearly$Sex,sd,na.rm=TRU
 ```
 
 #### OBSERVATION: 
-The center and spread for death rates males is a lot higher than females alone and with the combined sexes. Infact the center or average death rate for males is around 4-fold of that of the females
+The center and spread for death rates males is a lot higher than females alone and with the combined sexes. In fact, the center or average death rate for males is around 4-fold of that of the females
 
 ```{r}
 ggplot(data = suicide_rates_yearly, mapping = aes(x = Sex,y = death_rate_est))+
@@ -230,7 +230,7 @@ library(car)
 leveneTest(suicide_rates_yearly$death_rate_est,suicide_rates_yearly$Sex)
 ```
 
-# 5. Results:
+## 5. Results:
 The p-value is less than 0.001, so we reject the null hypothesis that there is no difference between the death rates of male to death rates of females.
 
 ```{r}
@@ -322,7 +322,7 @@ ggplot(data = suicide_rates_transformed, mapping = aes(x =RaceEthnicity ,y = Mea
 ```
 The two highest death rates are observed in American Indians and Whites. The lowest averages of death rates is observed in African-Americans.
 
-# CONCLUSION
+## CONCLUSION
 
 We observed a difference in rates between different races/ethnic groups, however we believe that since there is a large amount of missing data , the analysis needed heavy transformation to not calculate a heavily skew  analysis. We do recognize that it was not until 1995 that the NIH mandated that clinical and field work -NIH funded- projects must include participants from POCS and marginalized groups. This may account for the  low values in the POC groups in comparison to the Whites.
 
@@ -333,11 +333,13 @@ We decided to further explore Sex differences and engage with data that reflect 
 
 # Part B: Sentiment analysis
 
-# 1. Web Scraping 
+In this second part, we look at reviews of four drugs: Cymbalta, Effexor, Lexapro and Prozac. The former two are SNRIs; the latter two are SSRIs. We will perform sentiment analyses and, through both a quantitative as well as qualitative lens, consider whether male and female reviews are importantly different from one another.
+
+## 1. Web Scraping 
 
 To gather the reviews, we will scrape from WebMD (e.g. https://reviews.webmd.com/drugs/drugreview-63990-lexapro-oral). All the pages have a similar format. There appear to be boxes, with some basic user info on top and then the content of the review below. There are also some star ratings, but we will rely exclusively on the text for this project.
 
-Inspecting the webpages further, we see that each review is under the headers of review sections are marked as ".card-header"). So we can use this as part of a loop. Further, within each review, we can find the user informatoin by looking for the class .details. We can find the date by looking for the class .date. And we can find the text of the review by looking for the immediately following class .description. that contains a paragraph of the class "description-text."
+Inspecting the webpages further, we see that each review is under the headers of review sections are marked as ".card-header"). So we can use this as part of a loop. Further, within each review, we can find the user information by looking for the class .details. We can find the date by looking for the class .date. And we can find the text of the review by looking for the immediately following class .description. that contains a paragraph of the class "description-text."
 
 Now, one struggle is that there are only 20 reviews on a page but each drug has many, many reviews. For Lexapro, I see there are 215 pages (so presumably around 215 x 19 to 20 total reviews). However, for each drug there's also a consistent format. Taking Lexapro again, the format is: "https://reviews.webmd.com/drugs/drugreview-63990-lexapro-oral?conditionid=&sortval=1&page=[page number]&next_page=true"
 
@@ -375,13 +377,13 @@ scrape_reviews = function(url_beginning, num_pages) {
 
 Now, we *could* just pass the different drugs into the function (e.g. cymbalta_reviews_df = scrape_reviews("https://reviews.webmd.com/drugs/drugreview-91491-cymbalta-oral?conditionid=&sortval=1&page=", 234)).
 
-However, this will all take a while so we can use parallel computing to hurry matters up. We start by defining the tasks for the workers. We define tasks a list of all the main tasks (i.e. one for cymbalta, one for effexor, and so on). We also have a list for each drug--that contains the two relevant paramaters.  
+However, this will all take a while so we can use parallel computing to hurry matters up. We start by defining the tasks for the workers. We define tasks a list of all the main tasks (i.e. one for Cymbalta, one for Effexor, and so on). We also have a list for each drug--that contains the two relevant parameters.  
 
 ```{r, eval=FALSE}
 library(parallel)
 library(doParallel)
 
-# the tasks are a list of 
+# the tasks are a list of sets of parameters...later the scrape_reviews function will be called for each element of this list.
 tasks = list(
   list(url_beginning = "https://reviews.webmd.com/drugs/drugreview-91491-cymbalta-oral?conditionid=&sortval=1&page=", num_pages = 234),
   list(url_beginning = "https://reviews.webmd.com/drugs/drugreview-4896-effexor-xr-oral?conditionid=&sortval=", num_pages = 178),
@@ -390,7 +392,7 @@ tasks = list(
 )
 ```
 
-Now we set up th parallel backend and use foreach and %dopar% to loop in parallel. We also have to ensure that all of these new environments have the rvest package since it's necessary for the scrape_reviews function.
+Now we set up the parallel backend and use foreach and %dopar% to loop in parallel. We also have to ensure that all of these new environments have the rvest package since it's necessary for the scrape_reviews function.
 
 ```{r, eval=FALSE}
 n.cores = parallel::detectCores() - 1 
@@ -414,7 +416,7 @@ For processing and publishing purposes on RPubs, we marked the above scraping co
 
 We generated CSV files from the above code and imported them into GitHub using `write.csv`. By uploading the CSVs to GitHub, we ensure reproducibility. We now proceed to the data cleaning and tidying phase.
 
-# 2. Data loading, cleaning, and tidying
+## 2. Data loading, cleaning, and tidying
 
 ```{r data}
 library(httr)
@@ -436,7 +438,7 @@ names(raw_prozac_reviews)[1] <- "reviewer_info"
 # Define the cleanup function
 cleanup_data <- function(raw_cymbalta_reviews) {
   
-# Separate the 'reviewer_info' columns into seperate columns
+# Separate the 'reviewer_info' columns into separate columns
 data_separated <- raw_cymbalta_reviews %>%
   separate(reviewer_info, into = paste0("column", 1:5), sep = " \\| ", fill = "right", extra = "merge")
 
@@ -560,7 +562,7 @@ list_datasets <- lapply(list_datasets, function(dataset) {
 list2env(list_datasets, envir = .GlobalEnv)
 ```
 
-### 3. Unnestng
+### 3. Tidy Text Format
 
 We start by unnesting. We need to separate the words of a review such that each row of a dataframe contains a single word.
 
@@ -598,39 +600,6 @@ head(tidy_cymbalta)
 ```
 
 The reviews are now in tidy format. Each row represents a single word (which later we will score). We also added a column for review_id; this will enable us to sum up the scores of reviews.
-
-1: Unnestng. 
-
-We start by unnesting. We need to separate the words of a review such that each row of a dataframe contains a single word.
-
-```{r}
-cymbalta_reviews$Date = as.Date(cymbalta_reviews$Date, format = "%m/%d/%Y")
-tidy_cymbalta = cymbalta_reviews %>% 
-  arrange(Date) %>% 
-  mutate(review_id = row_number()) %>% 
-  unnest_tokens(word, Review)
-
-effexor_reviews$Date = as.Date(effexor_reviews$Date, format = "%m/%d/%Y") #Just in case we'd like to sort over time 
-tidy_effexor = effexor_reviews %>% 
-  arrange(Date) %>% 
-  mutate(review_id = row_number()) %>% 
-  unnest_tokens(word, Review)
-
-lexapro_reviews$Date = as.Date(lexapro_reviews$Date, format = "%m/%d/%Y") # in case we want to sort over time?
-tidy_lexapro = lexapro_reviews %>% 
-  arrange(Date) %>% 
-  mutate(review_id = row_number()) %>% 
-  unnest_tokens(word, Review)
-
-prozac_reviews$Date = as.Date(prozac_reviews$Date, format = "%m/%d/%Y") # in case we want to sort over time?
-tidy_prozac = prozac_reviews %>% 
-  arrange(Date) %>% 
-  mutate(review_id = row_number()) %>% 
-  unnest_tokens(word, Review)
-
-head(tidy_cymbalta) 
-
-```
 
 The reviews are now in tidy format. Each row represents a single word (which later we will score). We also added a column for review_id; this will enable us to sum up the scores of reviews.
 
@@ -691,11 +660,11 @@ head(prozac_scores)
 
 So now we're in great shape, with dataframes containing the scores of each review for each drug. Furthermore, the dataframes have gender information, so we're able to analyze the reviews by gender.
 
-## 5. Analysis
+## Quantitative Analysis 
 
-Step 3 is a major one. We analyze the mainframes we've created. We begin the analysis by performing some visualizations
+We now analyze the tidy dataframes we've created. We begin the analysis by performing some visualizations
 
-### 6. Visualizations
+### Visualizations
 
 Again, we are primarily interested in how male and female reviews of these medications may differ. We start by creating box plots for all of the four drugs, filling by gender. We evaluate only male and female since those represent the vast majority of reviews. Similar analysis of other gender identities is warranted; unfortunately we lack the data at this time. We first visualize the SNRIs.
 
@@ -738,7 +707,7 @@ prozac_scores %>% ggplot(aes(x = Gender, y = total_score, fill = Gender)) +
 
 Interestingly, the IQRs for both drugs are quite small--especially male Lexapro reviews. This makes it a bit hard to analyze differences. The male and female medians look close for both drugs, although the male median looks marginally lower for both. At this time, we turn to make a more precise calculation, namely whether the differences in means between male and female reviewers is significant for both SSRIs and SNRIs:
 
-### 7. ANOVA
+### ANOVA
 
 There are three basic conditions for ANOVA: 
 **1. Independence within and across groups.** This condition is met. 
@@ -806,7 +775,9 @@ gender_stats
 
 Male reviews have a lower mean and median score. However, the minimum review score and maximum review score are both lower for female reviews than they are for male reviews.
 
-Now, let's consider the question from another angle. Suppose we know someone gave a negative review. Is that person more likely male or female? At first pass, we might be inclined to say male since the male reviews have a lower mean. However, w can define "negative reviews" in different fashions. As such, we can use a shiny app to answer this question (by allowing the user to interactively establish a threshold for what's considered a negative review). By the way, I'm new to shiny apps and I asked my friend (not in the course) to help me with this component. 
+### Defining "Negative"
+
+Now, let's consider the question from another angle. Suppose we know someone gave a negative review. Is that person more likely male or female? At first pass, we might be inclined to say male since the male reviews have a lower mean. However, wee can define "negative reviews" in different fashions. As such, we can use a shiny app to answer this question (by allowing the user to interactively establish a threshold for what's considered a negative review). By the way, I'm new to shiny apps and I asked my friend (not in the course) to help me with this component. 
 
 ```{r}
 library(shiny)
@@ -850,11 +821,11 @@ shinyApp(ui = ui, server = server)
 
 ```
 
-As it turns out, if we define a negative review as anything 0 or lower, or -3 or lower, then it is more likely that the negative reviewer is male. However, if we define it as -1 or lower, -2 or lower, -4 or lower, and so on, then the reviewer is more likely to be female. This provides quite important information as it suggests that while, overall, males may have a worse experience with these drugs, the really bad experiences may belong to female patients. 
+As it turns out, if we define a negative review as anything lower than 0, or anything lower than -3, then it is more likely that the negative reviewer is male. However, if we define it as lower than -1, -2, -4, and so on, then the reviewer is more likely to be female. This provides quite important information as it suggests that while, overall, males may have a worse experience with these drugs, the really bad experiences may belong to female patients. It also highlights the difficulty and imperfections of sentiment analyses--it may be that only scores lower than, say, -3 should be considered negative. However, validating our understanding of positive and negative scores is outside the scope of this project--we assume a simple interpretation of these categories throughout.
 
 Thus far, we've assigned scores to reviews of four drugs, visualized these scores, and conducted ANOVA on SSRI and SNRI drugs to conclude that there is a statistically significant difference between the means of male and female SSRI drug review scores. We also considered the points at which a negative review is more likely to be male or female. We now turn to a more qualitative look at the different drug reviews. 
 
-### Common words
+## Qualitative Analysis
 
 We have begun our analysis by splitting the data based on gender, creating separate datasets for male and female reviews of the 4 antidepressant drugs. This division allows us to investigate potential gender-specific patterns in sentiment and word usage
 
@@ -870,7 +841,7 @@ prozac_male <- prozac_scores %>% filter(Gender == "Male")
 prozac_female <- prozac_scores %>% filter(Gender == "Female")
 ```
 
-#### Combining the SSRI Datasets (prozac and lexapro)
+#### Combining the SSRI Datasets (Prozac and Lexapro)
 
 To gain a comprehensive understanding, we merged datasets for two SSRIs: Lexapro and Prozac, creating a unified dataset for further analysis. Similarly, we merged datasets for SNRIs (Effexor and Cymbalta).
 
@@ -904,7 +875,7 @@ ssri_positive_female <- ssri_merged %>%
 
 #### Word cloud for SSRI's Positive words based on Male and Female 
 
-Visualizing the positive words, we created word clouds for both male and female sentiments. These clouds provide an intuitive representation of the frequency and prominence of positive words in each gender's reviews. We noticed that the most common postitive words were similar in both male and female reviews. 
+Visualizing the positive words, we created word clouds for both male and female sentiments. These clouds provide an intuitive representation of the frequency and prominence of positive words in each gender's reviews. We noticed that the most common positive words were similar in both male and female reviews. 
 
 ```{r}
 library(wordcloud)
@@ -944,7 +915,7 @@ ssri_negative_female <- ssri_merged %>%
 Visual representations of negative words through word clouds offer insights into the prevalent concerns or criticisms expressed by each gender in their reviews.
 
 ```{r}
-library(wordcloud) #Selina, I changed it to wordcloud (from wordcloud2 because it wasn't working)
+library(wordcloud) 
 # Male
 wordcloud(ssri_negative_male$word, ssri_negative_male$count, max.words = 10, scale = c(3, 0.5),
           main = "SSRI Negative Words - Male")
@@ -1030,4 +1001,4 @@ wordcloud(snri_negative_female$word, snri_negative_female$count, max.words = 10,
 # Conclusion 
 In conclusion, our extensive analysis of antidepressant reviews from WebMD has provided valuable insights into the gender dynamics of sentiments expressed by users. Our analysis of antidepressant reviews from WebMD sheds light on distinct gender dynamics in user sentiments, particularly concerning SSRIs and SNRIs. SNRIs, such as Cymbalta and Effexor, revealed a gender-neutral trend, indicating consistent experiences among male and female users. In contrast, SSRIs like Lexapro and Prozac exhibited statistically significant differences in sentiment scores, hinting at nuanced emotional expressions between genders. The findings emphasize the necessity of recognizing these variations for a more informed and personalized approach to mental health care.
 
-As for future recommendations, healthcare professionals should be attentive to the diverse ways male and female users express their experiences with antidepressants, and taking note of the adverse reactions that may occur based on gender. Future research endeavors could explore qualitative aspects of reviews to unveil the underlying factors contributing to gender-based differences. Additionally, similar studies should also be conducted on non-binary and transgender patients as well to grasp a better understanding of how the mentioned drugs affect those gender groups as well, this would be a more inclusive approach.
+As for future recommendations, healthcare professionals should be attentive to the diverse ways male and female users express their experiences with antidepressants, and take note of the adverse reactions that may occur based on gender. Future research endeavors could explore qualitative aspects of reviews to unveil the underlying factors contributing to gender-based differences. Additionally, similar studies should also be conducted on non-binary and transgender patients as well to grasp a better understanding of how the mentioned drugs affect those gender groups as well--this would be a more inclusive approach.
